@@ -1,0 +1,20 @@
+/* List view */
+.mark-view .content {
+  display: flex;
+}
+
+.mark-view .mark-grid {
+  flex: 2;
+}
+
+.mark-view .mark-form {
+  flex: 1;
+  padding: var(--lumo-space-m);
+}
+
+@media all and (max-width: 1100px) {
+  .list-view.editing .toolbar,
+  .list-view.editing .contact-grid {
+    display: none;
+  }
+}
