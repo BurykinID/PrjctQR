@@ -105,6 +105,7 @@ public class ListView extends VerticalLayout {
                     int symbol = sb.indexOf("\r\n");
                     if (symbol != -1){
                         bufferCode = bufferCode.concat(data.substring(0, symbol));
+
                         if (bufferCode.length() == 18) {
 
                             String firstSymbol = bufferCode.substring(0, 1);
@@ -122,17 +123,25 @@ public class ListView extends VerticalLayout {
                                                 historyBox.add(bufferCode);
                                             }
                                             else {
-                                                messageToPeople("Внимание! Считан неопознанный штрихкод: " + bufferCode);
+                                                messageToPeople("Внимание! Считан штрихкод другого короба: " + bufferCode);
                                                 saveLog(bufferCode,"Сборка короба " + historyBox.get(0) + ". Считан штрихкод другого короба.", LvlEvent.WARNING, macAddress);
                                             }
                                             break;
 
                                         }
-                                        
+
                                         case 3: {
-                                            messageToPeople("Сборка короба отменена");
-                                            saveLog(bufferCode, "Сборка короба " + historyBox.get(0) +" отменена", LvlEvent.INFO, macAddress);
-                                            clearHistory();
+
+                                            if (historyBox.get(0).equals(bufferCode)) {
+                                                messageToPeople("Сборка короба отменена");
+                                                saveLog(bufferCode, "Сборка короба " + historyBox.get(0) +" отменена", LvlEvent.INFO, macAddress);
+                                                clearHistory();
+                                            }
+                                            else {
+                                                messageToPeople("Внимание! Считан штрихкод другого короба: " + bufferCode);
+                                                saveLog(bufferCode,"Сборка короба " + historyBox.get(0) + ". Считан штрихкод другого короба.", LvlEvent.WARNING, macAddress);
+                                            }
+
                                         }
 
                                     }
@@ -152,17 +161,21 @@ public class ListView extends VerticalLayout {
 
                                                 Box box = boxRepository.findByNumberBox(bufferCode);
                                                 String statusBox = box.getStatus();
+
                                                 if (statusBox.equals("В сборке")) {
                                                     String macAddressAFewTimes = boxMarkRepository.findByNumberBox(bufferCode).get(0).getMacAddress();
                                                     if (macAddressAFewTimes.equals(macAddress)) {
                                                         backToSession(box.getNumberBox());
+                                                        messageToPeople("Сборка короба будет продолжена");
                                                         saveLog(bufferCode, "Сборка короба " + box.getNumberBox() + " восстановлена", LvlEvent.INFO, macAddress);
                                                         isStarted = true;
+                                                        historyBox.add(bufferCode);
                                                     }
                                                 }
                                                 else if (statusBox.equals("Собран")){
                                                     messageToPeople("Короб уже собран");
                                                     saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + " уже выполнена", LvlEvent.WARNING, macAddress);
+                                                    historyBox = new LinkedList<>();
                                                 }
                                                 else {
                                                     initialAssemblyBox(box, "Сборка короба " + historyBox.get(0) + " начата.");
@@ -174,21 +187,29 @@ public class ListView extends VerticalLayout {
                                                 saveLog(bufferCode,"Сборка не запущена. Считан другой штрихкод", LvlEvent.WARNING, macAddress);
                                             }
                                         }
+
                                     }
                                 }
                             }
                             else {
                                 if (isStarted) {
+                                    messageToPeople("Ошибка! Штрихкод не распознан! " + bufferCode);
                                     saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Считан неопознанный штрихкод", LvlEvent.WARNING, macAddress);
                                 }
                                 else {
+                                    messageToPeople("Ошибка! Штрихкод не распознан! " + bufferCode);
                                     saveLog(bufferCode, "Сборка короба не запущена. Считан неопознанный штрихкод", LvlEvent.WARNING, macAddress);
                                 }
                             }
 
                         }
                         else if (bufferCode.length() > 31) {
+
                             if (isStarted) {
+
+                                if (historyBox.size() == 3) {
+                                    historyBox.remove(2);
+                                }
 
                                 if (firtsCheck) {
                                     assemblyBox();
@@ -200,25 +221,17 @@ public class ListView extends VerticalLayout {
 
                                     if (statusBox.equals("В сборке")) {
 
-                                        List<BoxMark> boxMarks = boxMarkRepository.findByNumberBox(box.getNumberBox());
+                                        List<MarkView> markView = markViewRepository.findByMacAddress(macAddress);
 
-                                        if (boxMarks.size() > 0) {
-                                            String mac = boxMarks.get(0).getMacAddress();
-                                            if (macAddress.equals(mac)) {
-                                                // если мак адрес совпал, то не важно, он может продолжить сборку
-                                                backToSession(box.getNumberBox());
-                                                box.setStatus("В сборке");
-                                                boxRepository.save(box);
-                                                firtsCheck = true;
-                                            }
-                                            else {
-                                                messageToPeople("Ошибка! Сборка короба уже начата на другом компьютере!");
-                                                saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + " уже выполняется на " + mac, LvlEvent.WARNING, macAddress);
-                                            }
+                                        if (markView.size() > 0) {
+                                           assemblyBox();
                                         }
                                         else {
-                                            assemblyBox();
+                                            String mac = boxMarkRepository.findByNumberBoxAndCis(box.getNumberBox(), bufferCode).getMacAddress();
+                                            messageToPeople("Ошибка! Сборка короба уже начата на другом компьютере!");
+                                            saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + " уже выполняется на " + mac, LvlEvent.WARNING, macAddress);
                                         }
+
                                     }
                                     else if (statusBox.equals("Собран")){
                                         messageToPeople("Короб уже собран");
@@ -237,6 +250,7 @@ public class ListView extends VerticalLayout {
                             }
 
                         }
+
                         bufferCode = "";
                     }
                     else {
@@ -248,6 +262,7 @@ public class ListView extends VerticalLayout {
         catch (SerialPortException ex) {
             saveLog(null, "Порт занят.", LvlEvent.CRITICAL, macAddress);
             System.out.println("Порт занят");
+            System.exit(0);
         }
 
     }
@@ -277,9 +292,12 @@ public class ListView extends VerticalLayout {
     public void messageToPeople (String message){
 
         dialog.close();
-        dialog = new Dialog();
-        dialog.add(new Label(message));
-        dialog.open();
+
+        if (!message.isEmpty()) {
+            dialog = new Dialog();
+            dialog.add(new Label(message));
+            dialog.open();
+        }
 
     }
     // первоначальная загрузка списка товаров для сборки короба
@@ -336,31 +354,46 @@ public class ListView extends VerticalLayout {
         Box box = boxRepository.findByNumberBox(historyBox.get(0));
         Mark mark = markRepository.findByCis(cis);
 
-        if (mark.getNumberBox() != null && !mark.getNumberBox().isEmpty()) {
-            messageToPeople("Ошибка! Данная марка находится в другом коробе!");
-            saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Марка находится в другом коробе " + mark.getNumberBox() , LvlEvent.WARNING, macAddress);
-        }
-        else {
-
-            MarkView markInJson = markViewRepository.findByBarcode(mark.getBarcode());
-            int nowCount = markInJson.getCountNow();
-            int needCount = markInJson.getCountNeed();
-
-            if (needCount == 0) {
-                newMark(box, cis, markInJson);
+        if (mark != null) {
+            if (mark.getNumberBox() != null && !mark.getNumberBox().isEmpty()) {
+                messageToPeople("Ошибка! Данная марка находится в другом коробе!");
+                saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Марка находится в другом коробе " + mark.getNumberBox() , LvlEvent.WARNING, macAddress);
             }
             else {
-                if (needCount > nowCount) {
-                    newMark(box, cis, markInJson);
-                }
-                if (needCount == nowCount) {
-                    Good good = goodRepository.findByBarcode(markInJson.getBarcode());
-                    messageToPeople("Ошибка! Отложите " + good.getName() + "! Сборка этой обуви закончена!");
-                    saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Сборка данного вида обуви закончена!", LvlEvent.WARNING, macAddress);
-                }
-            }
 
+                MarkView markView = markViewRepository.findByBarcode(mark.getBarcode());
+
+                if (markView != null) {
+                    int nowCount = markView.getCountNow();
+                    int needCount = markView.getCountNeed();
+
+                    if (needCount == 0) {
+                        newMark(box, cis, markView);
+                    }
+                    else {
+                        if (needCount > nowCount) {
+                            newMark(box, cis, markView);
+                        }
+                        if (needCount == nowCount) {
+                            Good good = goodRepository.findByBarcode(markView.getBarcode());
+                            messageToPeople("Ошибка! Отложите " + good.getName() + "! Сборка этой обуви закончена!");
+                            saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Сборка данного вида обуви закончена!", LvlEvent.WARNING, macAddress);
+                        }
+                    }
+                }
+                else {
+                    String nameShoes = goodRepository.findByBarcode(mark.getBarcode()).getName();
+                    messageToPeople("Ошибка! Обувь " + nameShoes + " не найдена в сборочном листе!");
+                    saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Обувь " +nameShoes + " не найдена в сборочном листе!" , LvlEvent.WARNING, macAddress);
+                }
+
+            }
         }
+        else {
+            messageToPeople("Ошибка! Штрихкод не распознан! " + bufferCode);
+            saveLog(bufferCode, "Сборка короба " + box.getNumberBox() +". Считан неопознанный штрихкод", LvlEvent.WARNING, macAddress);
+        }
+
     }
     // добавление новой марки в базу
     public void newMark(Box box, String cis, MarkView markInJson) {
@@ -385,6 +418,7 @@ public class ListView extends VerticalLayout {
             boxMarkRepository.save(control);
             markViewRepository.save(markInJson);
             saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Марка добавлена в короб.", LvlEvent.INFO, macAddress);
+            messageToPeople("Марка добавлена в короб");
             updateGrid();
         }
     }
@@ -470,7 +504,7 @@ public class ListView extends VerticalLayout {
         LogSession event = new LogSession(new Date().getTime(), bufferCode, descriptionEvent, lvlEvent, macAddress);
         eventSessionRepository.save(event);
     }
-    // начало или восстановление сборки короба
+    // начало сборки короба
     public void initialAssemblyBox(Box box, String message) {
         setupGrid(bufferCode);
         historyBox.add(bufferCode);
