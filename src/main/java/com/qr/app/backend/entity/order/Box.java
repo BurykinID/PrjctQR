@@ -1,10 +1,10 @@
-package com.qr.app.backend.entity.box;
+package com.qr.app.backend.entity.order;
 
 import com.qr.app.backend.entity.AbstractEntity;
+import com.sun.istack.Nullable;
 import lombok.*;
 
 import javax.persistence.*;
-import java.util.List;
 
 @Entity
 @Getter
@@ -13,13 +13,10 @@ import java.util.List;
 @NoArgsConstructor
 public class Box extends AbstractEntity {
 
-    // лишняя строка
-    private String numberVariant;
     private String numberBox;
     private String status;
-
     @ManyToOne
-    @JoinColumn(name = "number_variant_id")
+    @JoinColumn(name = "number_variant")
     private VariantBox variantBox;
 
 }

@@ -4,19 +4,37 @@ import com.qr.app.backend.Json.container.OrderDao;
 import com.qr.app.backend.Json.container.dao.BoxDao;
 import com.qr.app.backend.Json.container.dao.DescriptionBoxDao;
 import com.qr.app.backend.Json.container.dao.VariantBoxDao;
+import com.qr.app.backend.Json.db.LockDB;
 import com.qr.app.backend.entity.Good;
 import com.qr.app.backend.entity.Mark;
-import com.qr.app.backend.entity.box.Box;
-import com.qr.app.backend.entity.box.DescriptionBox;
-import com.qr.app.backend.entity.box.Order;
-import com.qr.app.backend.entity.box.VariantBox;
-import com.qr.app.backend.repository.*;
+import com.qr.app.backend.entity.Sound;
+import com.qr.app.backend.entity.db.StateDB;
+import com.qr.app.backend.entity.order.Box;
+import com.qr.app.backend.entity.order.DescriptionBox;
+import com.qr.app.backend.entity.order.Order;
+import com.qr.app.backend.entity.order.VariantBox;
+import com.qr.app.backend.repository.GoodRepository;
+import com.qr.app.backend.repository.MarkRepository;
+import com.qr.app.backend.repository.db.StateDBRepository;
+import com.qr.app.backend.repository.order.BoxRepository;
+import com.qr.app.backend.repository.order.DescriptionBoxRepostitory;
+import com.qr.app.backend.repository.order.OrderRepository;
+import com.qr.app.backend.repository.order.VariantsBoxRepostiorty;
+import com.qr.app.backend.repository.sound.SoundRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.UnsupportedAudioFileException;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -32,14 +50,18 @@ public class PostController {
     private final VariantsBoxRepostiorty variantsBoxRepostiorty;
     private final GoodRepository goodRepository;
     private final OrderRepository orderRepository;
+    private final StateDBRepository stateDBRepository;
+    private final SoundRepository soundRepository;
 
-    public PostController (MarkRepository markRepository, BoxRepository boxRepository, DescriptionBoxRepostitory descriptionBoxRepostitory, VariantsBoxRepostiorty variantsBoxRepostiorty, GoodRepository goodRepository, OrderRepository orderRepository) {
+    public PostController (MarkRepository markRepository, BoxRepository boxRepository, DescriptionBoxRepostitory descriptionBoxRepostitory, VariantsBoxRepostiorty variantsBoxRepostiorty, GoodRepository goodRepository, OrderRepository orderRepository, StateDBRepository stateDBRepository, SoundRepository soundRepository) {
         this.markRepository = markRepository;
         this.boxRepository = boxRepository;
         this.descriptionBoxRepostitory = descriptionBoxRepostitory;
         this.variantsBoxRepostiorty = variantsBoxRepostiorty;
         this.goodRepository = goodRepository;
         this.orderRepository = orderRepository;
+        this.stateDBRepository = stateDBRepository;
+        this.soundRepository = soundRepository;
     }
 
     @PostMapping("/post/manyOrders")
@@ -151,13 +173,58 @@ public class PostController {
 
     }
 
+    @PostMapping("/post/lockDB")
+    public ResponseEntity lockDB (@RequestBody LockDB lock) {
+
+        Date date = new Date();
+
+        boolean lockBool = Boolean.parseBoolean(lock.getLock());
+
+        stateDBRepository.save(new StateDB(lockBool, lock.getMessage(), date.getTime()));
+
+        if (lockBool) {
+            return new ResponseEntity("Блокировка установлена", HttpStatus.OK);
+        }
+        else {
+            return new ResponseEntity("Блокировка снята", HttpStatus.OK);
+        }
+
+    }
+
+    @PostMapping("/post/addsound")
+    public ResponseEntity addSound(@RequestBody MultipartFile file) {
+
+        try {
+            soundRepository.save(new Sound(file.getOriginalFilename(), file.getBytes()));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return new ResponseEntity("Файлы были сохранены в базу", HttpStatus.OK);
+
+    }
+
+    @PostMapping("/post/addManySound")
+    public ResponseEntity addManySound(@RequestBody List<MultipartFile> files) {
+
+        try {
+            for (MultipartFile file : files) {
+                soundRepository.save(new Sound(file.getOriginalFilename(), file.getBytes()));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return new ResponseEntity("Файлы были сохранены в базу", HttpStatus.OK);
+
+    }
+
     private List<Box> setBox (OrderDao orderDao, List<VariantBox> variantBoxList) {
 
         List<Box> boxList = new LinkedList<>();
 
         for (BoxDao dao : orderDao.getBoxes()) {
             Box box = new Box();
-            box.setNumberVariant(dao.getNumberVariant());
             box.setNumberBox(dao.getNumberBox());
             box.setStatus(dao.getStatus());
 
@@ -181,7 +248,6 @@ public class PostController {
         for (DescriptionBoxDao dao : orderDao.getDescriptionBoxes()) {
             DescriptionBox box = new DescriptionBox();
             box.setBarcode(dao.getBarcode());
-            box.setNumberVariant(dao.getNumberVariant());
             box.setCount(dao.getCount());
             box.setNumberLine(dao.getNumberLine());
             for (VariantBox variantBox : boxList) {
@@ -232,146 +298,5 @@ public class PostController {
         return order;
 
     }
-
-    /*
-
-    @PostMapping("/post/manyBoxes")
-    public ResponseEntity insertManyBox(@RequestBody List<Box> boxes) {
-
-        long countBoxesBeforeInsert = boxRepository.count();
-        boxRepository.saveAll(boxes);
-        // количество записей в таблице, после добавления коробов
-        long countBoxesAfterInsert = boxRepository.count();
-        // количество записей, которые добавлены в таблицу
-        long countInsertInTable = countBoxesAfterInsert - countBoxesBeforeInsert;
-
-        if (countInsertInTable == boxes.size())
-            return new ResponseEntity("Добавлено записей: " + boxes.size(), HttpStatus.OK);
-        else
-            return new ResponseEntity("Добавлено записей: " + countInsertInTable, HttpStatus.BAD_REQUEST);
-
-    }
-
-    @PostMapping("/post/oneBox")
-    public ResponseEntity insertOneBox(@RequestBody Box box) {
-
-        long countBoxesBeforeInsert = boxRepository.count();
-        boxRepository.save(box);
-        // количество записей в таблице, после добавления описания
-        long countBoxesAfterInsert = boxRepository.count();
-        // количество записей, которые добавлены в таблицу
-        long countInsertInTable = countBoxesAfterInsert - countBoxesBeforeInsert;
-
-        if (countInsertInTable == 1)
-            return new ResponseEntity("Добавлено записей: 1", HttpStatus.OK);
-        else
-            return new ResponseEntity("Добавлено записей: " + countInsertInTable, HttpStatus.BAD_REQUEST);
-
-    }
-
-    @PostMapping("/post/manyDescriptions")
-    public ResponseEntity insertManyDescriptions(@RequestBody List<DescriptionBox> descriptionBoxes) {
-
-        long countDescriptionsBeforeInsert = descriptionBoxRepostitory.count();
-        descriptionBoxRepostitory.saveAll(descriptionBoxes);
-        // количество записей в таблице, после добавления описания
-        long countDescriptionsAfterInsert = descriptionBoxRepostitory.count();
-        // количество записей, которые добавлены в таблицу
-        long countInsertInTable = countDescriptionsAfterInsert - countDescriptionsBeforeInsert;
-
-        if (countInsertInTable == descriptionBoxes.size())
-            return new ResponseEntity("Добавлено записей: " + descriptionBoxes.size(), HttpStatus.OK);
-        else
-            return new ResponseEntity("Добавлено записей: " + countInsertInTable, HttpStatus.BAD_REQUEST);
-
-    }
-
-    @PostMapping("/post/oneDescription")
-    public ResponseEntity insertOneDescriptions(@RequestBody DescriptionBox descriptionBox) {
-
-        long countDescriptionsBeforeInsert = descriptionBoxRepostitory.count();
-        descriptionBoxRepostitory.save(descriptionBox);
-        // количество записей в таблице, после добавления описания
-        long countDescriptionsAfterInsert = descriptionBoxRepostitory.count();
-        // количество записей, которые добавлены в таблицу
-        long countInsertInTable = countDescriptionsAfterInsert - countDescriptionsBeforeInsert;
-
-        if (countInsertInTable == 1)
-            return new ResponseEntity("Добавлено записей: 1", HttpStatus.OK);
-        else
-            return new ResponseEntity("Добавлено записей: " + countInsertInTable, HttpStatus.BAD_REQUEST);
-
-    }
-
-    @PostMapping("/post/manyVariants")
-    public ResponseEntity insertManyVariants(@RequestBody List<VariantBoxJson> variantBoxesJson) {
-
-        long countVariantsBeforeInsert = variantsBoxRepostiorty.count();
-
-        List<VariantBox> variantBoxes = new LinkedList<>();
-
-        for (VariantBoxJson variantBoxJson : variantBoxesJson) {
-            Date date;
-            try {
-                date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(String.valueOf(variantBoxJson.getDateOrder()));
-            } catch (ParseException e) {
-                date = new Date();
-            }
-
-            variantBoxes.add(setVariantBox(variantBoxJson, date));
-
-        }
-
-        variantsBoxRepostiorty.saveAll(variantBoxes);
-        // количество записей в таблице, после добавления товаров
-        long countVariantsAfterInsert = variantsBoxRepostiorty.count();
-        // количество записей, которые добавлены в таблицу
-        long countInsertInTable = countVariantsAfterInsert - countVariantsBeforeInsert;
-
-        if (countInsertInTable == variantBoxes.size())
-            return new ResponseEntity("Добавлено записей: " + variantBoxes.size(), HttpStatus.OK);
-        else
-            return new ResponseEntity("Добавлено записей: " + countInsertInTable, HttpStatus.BAD_REQUEST);
-
-    }
-
-    @PostMapping("/post/oneVariant")
-    public ResponseEntity insertOneVariant(@RequestBody VariantBoxJson variantBoxJson) {
-
-        // количество записей в таблице, до добавления вариантов
-        long countVariantsBeforeInsert = variantsBoxRepostiorty.count();
-        Date date;
-        try {
-            date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(String.valueOf(variantBoxJson.getDateOrder()));
-        } catch (ParseException e) {
-            date = new Date();
-        }
-        VariantBox variantBox = setVariantBox(variantBoxJson, date);
-        variantsBoxRepostiorty.save(variantBox);
-        // количество записей в таблице, после добавления вариантов
-        long countVariantsAfterInsert = variantsBoxRepostiorty.count();
-        // количество записей, которые добавлены в таблицу
-        long countInsertInTable = countVariantsAfterInsert - countVariantsBeforeInsert;
-
-        if (countInsertInTable == 1)
-            return new ResponseEntity("Добавлено записей: 1", HttpStatus.OK);
-        else
-            return new ResponseEntity("Добавлено записей: " + countInsertInTable, HttpStatus.BAD_REQUEST);
-
-    }
-
-
-
-    public VariantBox setVariantBox (VariantBoxJson json, Date date) {
-
-        VariantBox variantBox = new VariantBox();
-        variantBox.setDateOrder(date.getTime());
-        variantBox.setCountBox(json.getCountBox());
-        variantBox.setCountInBox(json.getCountInBox());
-        variantBox.setNumberOrder(json.getNumberOrder());
-        variantBox.setNumberVariant(json.getNumberVariant());
-        return variantBox;
-
-    }*/
 
 }

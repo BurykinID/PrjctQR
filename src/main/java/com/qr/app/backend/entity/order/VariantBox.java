@@ -1,7 +1,6 @@
-package com.qr.app.backend.entity.box;
+package com.qr.app.backend.entity.order;
 
 import lombok.*;
-import org.springframework.format.annotation.DateTimeFormat;
 
 import javax.persistence.*;
 import java.util.List;

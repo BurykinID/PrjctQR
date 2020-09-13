@@ -6,16 +6,16 @@ import lombok.*;
 @Setter
 @Data
 @NoArgsConstructor
-public class MarkJson {
+public class MarkJsonCheck {
 
     private String cis;
     private String numberBox;
-    private String lastUpdate;
+    private String barcode;
 
-    public MarkJson(String cis, String numberBox, String date) {
+    public MarkJsonCheck(String cis, String numberBox, String date) {
         this.cis = cis;
         this.numberBox = numberBox;
-        this.lastUpdate = date;
+        this.barcode = date;
     }
 
 }

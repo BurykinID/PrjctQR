@@ -1,6 +1,6 @@
-package com.qr.app.backend.repository;
+package com.qr.app.backend.repository.order;
 
-import com.qr.app.backend.entity.box.Order;
+import com.qr.app.backend.entity.order.Order;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {

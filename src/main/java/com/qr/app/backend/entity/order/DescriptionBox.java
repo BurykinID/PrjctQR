@@ -1,9 +1,8 @@
-package com.qr.app.backend.entity.box;
+package com.qr.app.backend.entity.order;
 
 import com.qr.app.backend.entity.AbstractEntity;
 import lombok.*;
 import javax.persistence.*;
-import java.util.List;
 
 @Entity
 @Getter
@@ -12,14 +11,12 @@ import java.util.List;
 @NoArgsConstructor
 public class DescriptionBox extends AbstractEntity {
 
-    // numberVariant лишний
-    private String numberVariant;
     private int numberLine;
     private String barcode;
     private int count;
 
     @ManyToOne
-    @JoinColumn(name = "number_variant_id")
+    @JoinColumn(name = "number_variant")
     private VariantBox variantBox;
 
 }

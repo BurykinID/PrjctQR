@@ -6,12 +6,13 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface MarkRepository extends JpaRepository<Mark, Long> {
 
-    Mark findByCis(String cis);
+    Optional<Mark> findByCis(String cis);
 
-    @Query("select mark from mark mark where mark.date < :date")
+    @Query("select mark from mark mark where mark.date >= :date")
     List<Mark> findByDate(@Param("date") long date);
 
 }

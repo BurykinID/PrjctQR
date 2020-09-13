@@ -12,9 +12,9 @@ import lombok.Setter;
 public class JsonReturn {
 
     private String resultRequest;
-    private MarkJson mark;
+    private MarkJsonCheck mark;
 
-    public JsonReturn(String resultRequest, MarkJson mark) {
+    public JsonReturn(String resultRequest, MarkJsonCheck mark) {
         this.resultRequest = resultRequest;
         this.mark = mark;
     }

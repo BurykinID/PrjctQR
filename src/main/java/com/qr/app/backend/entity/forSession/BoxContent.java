@@ -10,7 +10,7 @@ import javax.persistence.Entity;
 @Setter
 @Data
 @NoArgsConstructor
-public class MarkView extends AbstractEntity {
+public class BoxContent extends AbstractEntity {
 
     private String barcode;
     private String article;
