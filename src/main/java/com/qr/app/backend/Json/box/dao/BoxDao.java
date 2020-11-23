@@ -1,4 +1,4 @@
-package com.qr.app.backend.Json.container.dao;
+package com.qr.app.backend.Json.box.dao;
 
 import lombok.*;
 

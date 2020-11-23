@@ -1,4 +1,4 @@
-package com.qr.app.backend.entity.forSession;
+package com.qr.app.backend.entity.forSession.temporarytable.box;
 
 import com.qr.app.backend.entity.AbstractEntity;
 import lombok.*;
@@ -19,5 +19,6 @@ public class BoxContent extends AbstractEntity {
     private int countNow;
     private int countNeed;
     private String macAddress;
+    private String numberBox;
 
 }

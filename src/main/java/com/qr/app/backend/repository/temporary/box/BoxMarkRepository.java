@@ -1,6 +1,6 @@
-package com.qr.app.backend.repository.temporary;
+package com.qr.app.backend.repository.temporary.box;
 
-import com.qr.app.backend.entity.forSession.BoxMark;
+import com.qr.app.backend.entity.forSession.temporarytable.box.BoxMark;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -10,7 +10,7 @@ import javax.transaction.Transactional;
 import java.util.List;
 import java.util.Optional;
 
-public interface BoxMarkReposiotry extends JpaRepository<BoxMark, Long> {
+public interface BoxMarkRepository extends JpaRepository<BoxMark, Long> {
 
     List<BoxMark> findByNumberBox(String numberBox);
 

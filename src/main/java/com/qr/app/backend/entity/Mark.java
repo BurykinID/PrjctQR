@@ -8,7 +8,6 @@ import javax.persistence.*;
 @Getter
 @Setter
 @Data
-@NoArgsConstructor
 public class Mark extends AbstractEntity {
 
     @NonNull
@@ -19,5 +18,13 @@ public class Mark extends AbstractEntity {
     private String numberBox;
     private String numberOrder;
     private long date;
+
+    public Mark() {
+        cis = "";
+        barcode = "";
+        numberBox = "";
+        numberOrder = "";
+        date = 0;
+    }
 
 }

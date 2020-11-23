@@ -1,4 +1,4 @@
-package com.qr.app.backend.entity.order;
+package com.qr.app.backend.entity.order.box;
 
 import com.qr.app.backend.entity.AbstractEntity;
 import lombok.*;

@@ -1,4 +1,4 @@
-package com.qr.app.backend.entity.forSession;
+package com.qr.app.backend.entity.forSession.temporarytable.box;
 
 import com.qr.app.backend.entity.AbstractEntity;
 import lombok.*;

@@ -161,6 +161,7 @@
     </dependencies>
 
     <build>
+        <finalName>app</finalName>
         <defaultGoal>spring-boot:run</defaultGoal>
         <plugins>
 

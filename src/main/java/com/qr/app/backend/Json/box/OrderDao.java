@@ -1,8 +1,8 @@
-package com.qr.app.backend.Json.container;
+package com.qr.app.backend.Json.box;
 
-import com.qr.app.backend.Json.container.dao.BoxDao;
-import com.qr.app.backend.Json.container.dao.DescriptionBoxDao;
-import com.qr.app.backend.Json.container.dao.VariantBoxDao;
+import com.qr.app.backend.Json.box.dao.BoxDao;
+import com.qr.app.backend.Json.box.dao.DescriptionBoxDao;
+import com.qr.app.backend.Json.box.dao.VariantBoxDao;
 import lombok.*;
 
 import java.util.List;

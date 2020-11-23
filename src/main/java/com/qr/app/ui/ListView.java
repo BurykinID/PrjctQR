@@ -1,24 +1,26 @@
 package com.qr.app.ui;
 
-import com.qr.app.backend.entity.db.Transaction;
-import com.qr.app.backend.entity.db.StateDB;
-import com.qr.app.backend.entity.forSession.BoxMark;
-import com.qr.app.backend.entity.forSession.LogSession;
-import com.qr.app.backend.entity.forSession.LvlEvent;
-import com.qr.app.backend.entity.forSession.BoxContent;
 import com.qr.app.backend.entity.Good;
 import com.qr.app.backend.entity.Mark;
-import com.qr.app.backend.entity.order.Box;
-import com.qr.app.backend.entity.order.DescriptionBox;
-import com.qr.app.backend.entity.order.VariantBox;
-import com.qr.app.backend.repository.*;
-import com.qr.app.backend.repository.db.TransactionRepository;
+import com.qr.app.backend.entity.db.StateDB;
+import com.qr.app.backend.entity.db.Transaction;
+import com.qr.app.backend.entity.forSession.temporarytable.box.BoxContent;
+import com.qr.app.backend.entity.forSession.temporarytable.box.BoxMark;
+import com.qr.app.backend.entity.forSession.LogSession;
+import com.qr.app.backend.entity.forSession.LvlEvent;
+import com.qr.app.backend.entity.order.box.Box;
+import com.qr.app.backend.entity.order.box.DescriptionBox;
+import com.qr.app.backend.entity.order.box.VariantBox;
+import com.qr.app.backend.repository.GoodRepository;
+import com.qr.app.backend.repository.LogSessionRepository;
+import com.qr.app.backend.repository.MarkRepository;
 import com.qr.app.backend.repository.db.StateDBRepository;
-import com.qr.app.backend.repository.order.BoxRepository;
-import com.qr.app.backend.repository.order.DescriptionBoxRepostitory;
+import com.qr.app.backend.repository.db.TransactionRepository;
+import com.qr.app.backend.repository.order.box.BoxRepository;
+import com.qr.app.backend.repository.order.box.DescriptionBoxRepository;
 import com.qr.app.backend.repository.sound.SoundRepository;
-import com.qr.app.backend.repository.temporary.BoxContentRepository;
-import com.qr.app.backend.repository.temporary.BoxMarkReposiotry;
+import com.qr.app.backend.repository.temporary.box.BoxContentRepository;
+import com.qr.app.backend.repository.temporary.box.BoxMarkRepository;
 import com.qr.app.backend.sound.Sound;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dialog.Dialog;
@@ -31,21 +33,24 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.Route;
 import jssc.SerialPort;
 import jssc.SerialPortException;
-import org.springframework.beans.factory.annotation.Autowired;
+import jssc.SerialPortList;
+import org.hibernate.NonUniqueResultException;
 
 import java.io.*;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Route(value = "")
 @Push
 public class ListView extends VerticalLayout {
-
-    @Autowired
-    private org.springframework.boot.ApplicationArguments applicationArguments;
 
     private Grid<BoxContent> grid;
     private Label numberBoxLabel = new Label("Номер короба: ");
@@ -58,6 +63,8 @@ public class ListView extends VerticalLayout {
     private Dialog dialog = new Dialog();
     private String bufferCode;
 
+    private boolean lock = false;
+
     private SerialPort serialPort;
 
     private boolean isStarted = false;
@@ -66,20 +73,19 @@ public class ListView extends VerticalLayout {
     private boolean firtsCheck = false;
 
     private final BoxRepository boxRepository;
-    private final DescriptionBoxRepostitory descriptionBoxRepostitory;
+    private final DescriptionBoxRepository descriptionBoxRepository;
     private final GoodRepository goodRepository;
     private final MarkRepository markRepository;
     private final BoxContentRepository boxContentRepository;
-    private final BoxMarkReposiotry boxMarkRepository;
+    private final BoxMarkRepository boxMarkRepository;
     private final LogSessionRepository logSessionRepository;
     private final StateDBRepository stateDBRepository;
     private final TransactionRepository transactionRepository;
     private final SoundRepository soundRepository;
 
-    public ListView (BoxRepository boxRepository, DescriptionBoxRepostitory descriptionBoxRepostitory, GoodRepository goodRepository, MarkRepository markRepository, BoxContentRepository boxContentRepository, BoxMarkReposiotry boxMarkRepository, LogSessionRepository logSessionRepository, StateDBRepository stateDBRepository, TransactionRepository transactionRepository, SoundRepository soundRepository) {
-
+    public ListView (BoxRepository boxRepository, DescriptionBoxRepository descriptionBoxRepository, GoodRepository goodRepository, MarkRepository markRepository, BoxContentRepository boxContentRepository, BoxMarkRepository boxMarkRepository, LogSessionRepository logSessionRepository, StateDBRepository stateDBRepository, TransactionRepository transactionRepository, SoundRepository soundRepository) throws FileNotFoundException {
         this.boxRepository = boxRepository;
-        this.descriptionBoxRepostitory = descriptionBoxRepostitory;
+        this.descriptionBoxRepository = descriptionBoxRepository;
         this.goodRepository = goodRepository;
         this.markRepository = markRepository;
         this.boxContentRepository = boxContentRepository;
@@ -100,9 +106,20 @@ public class ListView extends VerticalLayout {
         bufferCode = "";
         historyBox = new ArrayList<>();
 
-        serialPort = new SerialPort("COM3");
+        logSessionRepository.save(new LogSession(new Date().getTime(), "", "Начало создания конструктора", LvlEvent.SYSTEM_INFO, "-"));
+
+        String[] portNames = SerialPortList.getPortNames();
+
+        for (int i = 0; i < portNames.length; i++) {
+            System.out.println(portNames[i]);
+        }
+
+        serialPort = new SerialPort(getDevPort());
         refresh:
+
         try {
+
+            logSessionRepository.save(new LogSession(new Date().getTime(), "", "Попытка подключения к сканеру", LvlEvent.SYSTEM_INFO, "-"));
 
             serialPort.openPort();
             serialPort.setParams(SerialPort.BAUDRATE_9600,
@@ -112,136 +129,190 @@ public class ListView extends VerticalLayout {
             serialPort.setFlowControlMode(SerialPort.FLOWCONTROL_RTSCTS_IN |
                     SerialPort.FLOWCONTROL_RTSCTS_OUT);
 
+            logSessionRepository.save(new LogSession(new Date().getTime(), "", "Настройки подготовлены для сканера", LvlEvent.SYSTEM_INFO, "-"));
+
             serialPort.addEventListener(click -> {
-                StringBuilder sb = new StringBuilder();
-                try {
-                    sb.append(serialPort.readString(click.getEventValue()));
-                } catch (SerialPortException e) {
-                    e.printStackTrace();
-                }
-                UI ui = getUI().get();
-                ui.access(() -> {
-                    String data = sb.toString();
-                    int symbol = sb.indexOf("\r\n");
-                    if (symbol != -1){
-                        bufferCode = bufferCode.concat(data.substring(0, symbol));
-
-                        if (bufferCode.length() == 18) {
-
-                            List<StateDB> state = stateDBRepository.findAllSortByIdDesc();
-
-                            String firstSymbol = bufferCode.substring(0, 1);
-                            String fourthSymbol = bufferCode.substring(3, 4);
-
-                            if (state.size() > 0) {
-
-                                StateDB currentState = state.get(0);
-
-                                if (!currentState.isLock()) {
-                                    processBarcodeBox(firstSymbol, fourthSymbol);
+                if (!lock) {
+                    logSessionRepository.save(new LogSession(new Date().getTime(), "", "На сканер пришла информация", LvlEvent.SYSTEM_INFO, "-"));
+                    StringBuilder sb = new StringBuilder();
+                    try {
+                        saveLog("", "Подготовка считывания значения", LvlEvent.SYSTEM_INFO, macAddress);
+                        sb.append(serialPort.readString(click.getEventValue()));
+                        saveLog("", "Считывание значения " + sb.toString(), LvlEvent.SYSTEM_INFO, macAddress);
+                        UI ui = getUI().get();
+                        ui.access(() -> {
+                            saveLog("", "Управление потоком передано " + sb.toString(), LvlEvent.SYSTEM_INFO, macAddress);
+                            String data = sb.toString();
+                            if (data.length() <= 255) {
+                                saveLog("", "Пришло " + data, LvlEvent.SYSTEM_INFO, macAddress);
+                                int symbol = sb.indexOf("\r\n");
+                                saveLog("", "Обработка " + symbol, LvlEvent.SYSTEM_INFO, macAddress);
+                                if (symbol != -1){
+                                    lock = true;
+                                    bufferCode = bufferCode.concat(data.substring(0, symbol));
+                                    saveLog(bufferCode, "На сканер пришла информация", LvlEvent.SYSTEM_INFO, macAddress);
+                                    analyseCode();
                                 }
                                 else {
-                                    if (currentState.getDescription().isEmpty()) {
-                                        messageToPeople("База заблокирована. " + currentState.getDescription());
-                                    }
-                                    else {
-                                        messageToPeople(currentState.getDescription());
-                                    }
-                                    saveLog(bufferCode, "Считан штрихкод. База заблокирована", LvlEvent.INFO, macAddress);
+                                    saveLog(bufferCode, "Сборка bufferCode " + data, LvlEvent.SYSTEM_INFO, macAddress);
+                                    bufferCode += data;
                                 }
                             }
                             else {
-                                processBarcodeBox(firstSymbol, fourthSymbol);
+                                bufferCode = "";
+                                messageToPeople("Произошла ошибка. Считайте штрихкод ещё раз, чуть медленнее.");
+                                playSound("Ошибка.wav");
                             }
-
-                        }
-                        else if (bufferCode.length() > 31) {
-
-                            if (historyBox.size() == 3 ) {
-                                historyBox.remove(2);
-                            }
-
-							String leftPart = bufferCode.substring(0, 10);
-							if (leftPart.equals("0104680035") || 
-								leftPart.equals("0104680016") || 
-								leftPart.equals("0104610095")) {
-								
-								List<StateDB> state = stateDBRepository.findAllSortByIdDesc();
-
-								if (state.size() > 0) {
-
-                                    StateDB currentState = state.get(0);
-
-									if (!currentState.isLock()) {
-										processBarcodeMark();
-									}
-									else {
-										messageToPeople("База заблокирована" + currentState.getDescription());
-										saveLog(bufferCode, "Считан штрихкод. База заблокирована", LvlEvent.INFO, macAddress);
-									}
-								}
-								else {
-									processBarcodeMark();
-								}
-								
-							}
-							else {
-								messageToPeople("Считан неопознанный штрихкод! " + bufferCode);
-								saveLog(bufferCode, "Считанный штрихкод не опозан", LvlEvent.INFO, macAddress);
-								playSound("Штрихкод_не_опознан.wav");
-							}
-
-                        }
-                        else {
-
-                            if (historyBox.size() == 3) {
-                                historyBox.remove(2);
-                            }
-
-                            messageToPeople("Считан неопознанный штрихкод!" + bufferCode);
-                            saveLog(bufferCode, "Считанный штрихкод не опозан", LvlEvent.INFO, macAddress);
-                            playSound("Штрихкод_не_опознан.wav");
-                        }
-
-                        bufferCode = "";
+                        });
+                    } catch (SerialPortException e) {
+                        saveLog("", "Ошибка", LvlEvent.SYSTEM_INFO, macAddress);
+                        e.printStackTrace();
                     }
-                    else {
-                        bufferCode += data;
+                }
+                else {
+                    saveLog("", "Ответ от сканера ещё не получен. Ждите.", LvlEvent.INFO, macAddress);
+                    try {
+                        saveLog("", "Считывание находится в блокировке. Но пришло значение" + serialPort.readString(click.getEventValue()), LvlEvent.SYSTEM_INFO, macAddress);
+                    } catch (SerialPortException e) {
+                        saveLog("", "Ошибка считывания значения со сканера", LvlEvent.SYSTEM_INFO, macAddress);
+                        e.printStackTrace();
                     }
-                });
+                    messageToPeople("Вы ещё не получили ответа от программы. Дождитесь его, прежде чем продолжить сканирование.");
+                }
             }, SerialPort.MASK_RXCHAR);
         }
         catch (SerialPortException ex) {
-            saveLog(null, "Порт занят.", LvlEvent.CRITICAL, macAddress);
+            saveLog("", "Порт занят.", LvlEvent.CRITICAL, macAddress);
+            messageToPeople("Порт занят. Проверьте, что сканер использует COM порт указанный в настройках! Выключите приложения, которые используют сканер. Перезапустите приложение");
             break refresh;
         }
 
     }
 
+    private String getDevPort () throws FileNotFoundException {
+        BufferedReader br = new BufferedReader(new FileReader(new File(new File(".").getAbsolutePath(), "application.properties")));
+        try {
+            String s = br.readLine();
+            while (s != null) {
+                Pattern pattern = Pattern.compile("device.port=(.[^\r\n]*)");
+                Matcher matcher = pattern.matcher(s);
+                if (matcher.find()) {
+                    return matcher.group(1);
+                }
+                s = br.readLine();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        saveLog("", "Устройство не обнаружено. Убедитесь, что в файле настроек прописан device.port=", LvlEvent.SYSTEM_INFO, "");
+        return "COM3";
+
+    }
     // конфигурация текстовых полей
     public HorizontalLayout getToolBar () {
-
         HorizontalLayout layout = new HorizontalLayout(numberBoxLabel, numberBox, inBoxNeedLabel, inBoxNeed, inBoxNowLabel, inBoxNow);
-
         numberBox.setReadOnly(true);
         inBoxNeed.setReadOnly(true);
         inBoxNow.setReadOnly(true);
-
         return layout;
-
     }
     // конфигурация таблицы
     public void configureGrid () {
         grid = new Grid<>(BoxContent.class);
         grid.setSizeFull();
-        grid.removeColumnByKey("barcode");
-        grid.setColumns("article", "size", "color", "countNow", "countNeed");
+        grid.removeAllColumns();
+        grid.addColumn(BoxContent::getArticle).setHeader("Артикул");
+        grid.addColumn(BoxContent::getSize).setHeader("Размер");
+        grid.addColumn(BoxContent::getColor).setHeader("Цвет");
+        grid.addColumn(BoxContent::getCountNow).setHeader("Количество собрано");
+        grid.addColumn(BoxContent::getCountNeed).setHeader("Количество надо");
         grid.getColumns().forEach(col -> col.setAutoWidth(true));
+    }
+    // анализ штрихкодов
+    public void analyseCode() {
+        if (bufferCode.length() == 18) {
+            logSessionRepository.save(new LogSession(new Date().getTime(), bufferCode, "Обработка штрихкода", LvlEvent.CRITICAL, macAddress));
+            List<StateDB> state = stateDBRepository.findAllSortByIdDesc();
+            String firstSymbol = bufferCode.substring(0, 1);
+            String fourthSymbol = bufferCode.substring(3, 4);
+            if (state.size() > 0) {
+                StateDB currentState = state.get(0);
+                if (!currentState.isLock()) {
+                    processBarcodeBox(firstSymbol, fourthSymbol);
+                }
+                else {
+                    if (currentState.getDescription().isEmpty()) {
+                        messageToPeople("База заблокирована. " + currentState.getDescription());
+                    }
+                    else {
+                        messageToPeople(currentState.getDescription());
+                    }
+                    saveLog(bufferCode, "Считан штрихкод. База заблокирована", LvlEvent.INFO, macAddress);
+                }
+            }
+            else {
+                saveLog(bufferCode, "Обработка штрихкода", LvlEvent.SYSTEM_INFO, macAddress);
+                processBarcodeBox(firstSymbol, fourthSymbol);
+            }
+
+        }
+        else if (bufferCode.length() > 31) {
+
+            saveLog(bufferCode, "Обработка штрихкода", LvlEvent.SYSTEM_INFO, macAddress);
+
+            if (historyBox.size() == 3 ) {
+                historyBox.remove(2);
+            }
+
+            String leftPart = bufferCode.substring(0, 10);
+            if (leftPart.equals("0104680035") ||
+                    leftPart.equals("0104680016") ||
+                    leftPart.equals("0104610095")) {
+
+                List<StateDB> state = stateDBRepository.findAllSortByIdDesc();
+
+                if (state.size() > 0) {
+
+                    StateDB currentState = state.get(0);
+
+                    if (!currentState.isLock()) {
+                        processBarcodeMark();
+                    }
+                    else {
+                        messageToPeople("База заблокирована" + currentState.getDescription());
+                        saveLog(bufferCode, "Считан штрихкод. База заблокирована", LvlEvent.INFO, macAddress);
+                    }
+                }
+                else {
+                    processBarcodeMark();
+                }
+
+            }
+            else {
+                messageToPeople("Считан неопознанный штрихкод! " + bufferCode);
+                saveLog(bufferCode, "Считанный штрихкод не опозан", LvlEvent.INFO, macAddress);
+                playSound("Штрихкод_не_опознан.wav");
+            }
+
+        }
+        else {
+
+            if (historyBox.size() == 3) {
+                historyBox.remove(2);
+            }
+
+            messageToPeople("Считан неопознанный штрихкод!" + bufferCode);
+            saveLog(bufferCode, "Считанный штрихкод не опозан", LvlEvent.INFO, macAddress);
+            playSound("Штрихкод_не_опознан.wav");
+        }
+        bufferCode = "";
+        lock = false;
     }
     // вывод сообщений на экран
     public void messageToPeople (String message){
 
         dialog.close();
+
 
         if (!message.isEmpty()) {
             dialog = new Dialog();
@@ -257,7 +328,7 @@ public class ListView extends VerticalLayout {
 
         if (!box.getNumberBox().isEmpty()) {
             VariantBox variantBox = box.getVariantBox();
-            List<DescriptionBox> descriptionBox = descriptionBoxRepostitory.findByVariantBox(variantBox);
+            List<DescriptionBox> descriptionBox = descriptionBoxRepository.findByVariantBox(variantBox);
             List<BoxContent> boxContents = new LinkedList<>();
 
             if (descriptionBox.size() > 0) {
@@ -271,7 +342,9 @@ public class ListView extends VerticalLayout {
                     boxContent.setSize(good.getSize());
                     boxContent.setCountNeed(desc_box.getCount());
                     boxContent.setCountNow(0);
+                    boxContent.setNumberBox(box.getNumberBox());
                     boxContents.add(boxContent);
+
                 }
 
                 inBoxNeed.setValue(String.valueOf(variantBox.getCountInBox()));
@@ -296,29 +369,30 @@ public class ListView extends VerticalLayout {
 
     }
     // восстановление потеряной сессии
-    public void backToSession(String numberBox) {
+    public void backToSession(String numberBoxStr) {
         List<BoxContent> boxContentList = boxContentRepository.findByMacAddress(macAddress);
         List<BoxMark> boxMarkList = boxMarkRepository.findByMacAddress(macAddress);
         if (boxContentList.size() != 0) {
-            Box box = boxRepository.findByNumberBox(numberBox).orElse(new Box());
-
+            Box box = boxRepository.findByNumberBox(numberBoxStr).orElse(new Box());
             if (!box.getNumberBox().isEmpty()) {
                 inBoxNeed.setValue(String.valueOf(box.getVariantBox().getCountInBox()));
                 grid.setItems(boxContentList);
                 if (boxMarkList.size() != 0) {
                     inBoxNow.setValue(String.valueOf(boxMarkList.size()));
                 }
+                else {
+                    inBoxNow.setValue("0");
+                }
             }
             else {
-                messageToPeople("Короб не найден! " + numberBox);
+                messageToPeople("Короб не найден! " + numberBoxStr);
                 saveLog(bufferCode, "Короб " + historyBox.get(0) + " не найден в базе данных", LvlEvent.WARNING, macAddress);
                 playSound("Штрихкод_не_опознан.wav");
             }
-
-
+            numberBox.setValue(bufferCode);
         }
         else {
-            setupGrid(numberBox);
+            setupGrid(numberBoxStr);
         }
     }
     // загрузка товаров для сборки из базы
@@ -330,7 +404,6 @@ public class ListView extends VerticalLayout {
         String cis = bufferCode.substring(0,31);
         Box box = boxRepository.findByNumberBox(historyBox.get(0)).orElse(new Box());
         Mark mark = markRepository.findByCis(cis).orElse(new Mark());
-
         if (mark.getCis() != null && !mark.getCis().isEmpty()) {
             if (mark.getNumberBox() != null && !mark.getNumberBox().isEmpty()) {
                 messageToPeople("Ошибка! Данная марка находится в другом коробе!");
@@ -338,13 +411,10 @@ public class ListView extends VerticalLayout {
                 playSound("Эта_марка_уже_отгружена.wav");
             }
             else {
-
                 BoxContent boxContent = boxContentRepository.findByBarcode(mark.getBarcode()).orElse(new BoxContent());
-
                 if (boxContent.getBarcode() != null && !boxContent.getBarcode().isEmpty()) {
                     int nowCount = boxContent.getCountNow();
                     int needCount = boxContent.getCountNeed();
-
                     if (!box.getNumberBox().isEmpty()) {
                         if (needCount == 0) {
                             newMark(box, cis, boxContent);
@@ -386,7 +456,7 @@ public class ListView extends VerticalLayout {
     // добавление новой марки в базу
     public void newMark(Box box, String cis, BoxContent markInJson) {
         BoxMark control = boxMarkRepository.findByNumberBoxAndCis(box.getNumberBox(), cis).orElse(new BoxMark());
-        if (control.getCis() != null && !control.getCis().isEmpty()) {
+        if (control.getCis() != null || !control.getCis().isEmpty()) {
             messageToPeople("Ошибка! Марка " + cis + " уже есть в коробе!");
             saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Марка уже есть в коробе.", LvlEvent.WARNING, macAddress);
             playSound("Эта_марка_уже_лежит_в_коробе.wav");
@@ -414,6 +484,8 @@ public class ListView extends VerticalLayout {
     }
     // перенос данных из временных баз, в постоянные
     public void transferData() {
+
+        saveLog("", "Начало переноса данных из временной базы в постоянную.", LvlEvent.SYSTEM_INFO, macAddress);
 
         List<BoxMark> boxMarks =  boxMarkRepository.findByMacAddress(macAddress);
         List<Mark> modifiedMarks = new LinkedList<>();
@@ -444,7 +516,8 @@ public class ListView extends VerticalLayout {
 
     }
     // получение mac адреса компьютера
-    public String getMacAddress() {
+    public String getMacAddress() throws FileNotFoundException {
+
         InetAddress ip = null;
         try {
             ip = InetAddress.getLocalHost();
@@ -460,19 +533,44 @@ public class ListView extends VerticalLayout {
 
                 String macAddr = sb.toString();
 
-                return macAddr;
+                if (!macAddr.isEmpty()) {
+                    return macAddr;
+                }
+                else {
+                    return getMacInFile();
+                }
 
             } catch (SocketException e) {
-                e.printStackTrace();
+                saveLog("", "SocketException", LvlEvent.SYSTEM_INFO, "");
+                return getMacInFile();
             }
 
-
         } catch (UnknownHostException e) {
+            saveLog("", "UnknownHostException", LvlEvent.SYSTEM_INFO, "");
+            return getMacInFile();
+        }
+
+    }
+    // получение mac адреса компьютера из файла, используется в случае, если не удалось определить mac адрес с помощью метода getMacAddress
+    public String getMacInFile() throws FileNotFoundException{
+        BufferedReader br = new BufferedReader(new FileReader(new File(new File(".").getAbsolutePath(), "application.properties")));
+        try {
+            String s = br.readLine();
+            while (s != null) {
+                Pattern pattern = Pattern.compile("mac=(.[^\r\n]*)");
+                Matcher matcher = pattern.matcher(s);
+                if (matcher.find()) {
+                    return matcher.group(1);
+                }
+                s = br.readLine();
+            }
+        }
+        catch (IOException e) {
             e.printStackTrace();
         }
 
-        return null;
-
+        saveLog("", "Строка с mac адресом не найдена в файле. Убедитесь, что файл application.properties находится в каталоге с jar файлом", LvlEvent.SYSTEM_INFO, "");
+        return "";
     }
     // запись событий в базу данных
     public void saveLog (String bufferCode, String descriptionEvent, LvlEvent lvlEvent, String macAddress) {
@@ -514,10 +612,12 @@ public class ListView extends VerticalLayout {
             if (isStarted) {
                 switch (historyBox.size()) {
                     case 2: {
+                        saveLog("", "Инициализация отмены сборки короба", LvlEvent.SYSTEM_INFO, macAddress);
                         startCancelBuildBox();
                         break;
                     }
                     case 3: {
+                        saveLog("", "Отмена сборки короба", LvlEvent.SYSTEM_INFO, macAddress);
                         cancelBuildBox();
                     }
                 }
@@ -525,10 +625,12 @@ public class ListView extends VerticalLayout {
             else {
                 switch (historyBox.size()) {
                     case 0: {
+                        saveLog("", "Начало сборки короба", LvlEvent.SYSTEM_INFO, macAddress);
                         initBuildBox();
                         break;
                     }
                     case 1: {
+                        saveLog("", "Загрузка товаров", LvlEvent.SYSTEM_INFO, macAddress);
                         startBuildBox();
                     }
                 }
@@ -538,12 +640,20 @@ public class ListView extends VerticalLayout {
             errorScanBox();
         }
 
-        transactionRepository.delete(transactionRepository.findBySession(macAddress));
-        saveLog("", "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);
+        try{
+            transactionRepository.delete(transactionRepository.findBySession(macAddress));
+            saveLog("", "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);
+        }
+        catch (NonUniqueResultException e) {
+            messageToPeople("Во время работы возникла ошибка! Обратитесь к системному администратору!");
+            playSound("Ошибка.wav");
+            saveLog(bufferCode, "Ошибка в транзакции", LvlEvent.WARNING, macAddress);
+        }
 
     }
     // старт сборки короба, подгрузка всех штрихкодов
     public void startBuildBox() {
+
         if (bufferCode.equals(historyBox.get(0))) {
 
             Box box = boxRepository.findByNumberBox(bufferCode).get();
@@ -552,7 +662,7 @@ public class ListView extends VerticalLayout {
 
             if (statusBox.equals("В сборке")) {
 
-                List<BoxMark> boxes = boxMarkRepository.findByNumberBox(bufferCode);
+                List<BoxContent> boxes = boxContentRepository.findByNumberBox(bufferCode);
                 if (boxes.size() > 0) {
                     String macAddressAFewTimes = boxes.get(0).getMacAddress();
                     if (macAddressAFewTimes.equals(macAddress)) {
@@ -566,7 +676,7 @@ public class ListView extends VerticalLayout {
                         messageToPeople("Сборка короба запущена на другом компьютере");
                         saveLog(bufferCode, "Сборка короба " + box.getNumberBox() + " запущена на другом компьютере", LvlEvent.INFO, macAddress);
                         isStarted = true;
-                        historyBox.add(bufferCode);
+                        historyBox = new LinkedList<>();
                         playSound("Ошибка.wav");
                     }
                 }
@@ -594,38 +704,53 @@ public class ListView extends VerticalLayout {
             saveLog(bufferCode,"Сборка не запущена. Считан другой штрихкод", LvlEvent.WARNING, macAddress);
             playSound("Ошибка.wav");
         }
+
     }
     // инициализация сборки короба
     public void initBuildBox() {
 
         historyBox.add(bufferCode);
+        List<BoxContent> boxContent = boxContentRepository.findByMacAddress(macAddress);
 
-        Box box = boxRepository.findByNumberBox(bufferCode).orElse(new Box());
-
-        if (box.getNumberBox() != null && !box.getNumberBox().isEmpty()) {
-
-            if (box.getStatus().equals("Собран")) {
-                messageToPeople("Короб уже собран");
-                saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + " уже выполнена", LvlEvent.WARNING, macAddress);
-                playSound("Короб_уже_собран.wav");
-                historyBox = new LinkedList<>();
+        if (boxContent == null || boxContent.size() ==0) {
+            Box box = boxRepository.findByNumberBox(bufferCode).orElse(new Box());
+            if (box.getNumberBox() != null && !box.getNumberBox().isEmpty()) {
+                if (box.getStatus().equals("Собран")) {
+                    messageToPeople("Короб уже собран");
+                    saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + " уже выполнена", LvlEvent.WARNING, macAddress);
+                    playSound("Короб_уже_собран.wav");
+                    historyBox = new LinkedList<>();
+                }
+                else {
+                    messageToPeople("Отсканируйте штрихкод ещё раз");
+                    saveLog(bufferCode, "Инициация сборки короба.", LvlEvent.INFO, macAddress);
+                    playSound("Подтвердите_начало_сборки_короба_сканированием_штрихкода_короба_еще_раз.wav");
+                }
             }
             else {
+                messageToPeople("Считан неопознанный штрихкод " + bufferCode);
+                saveLog(bufferCode, "Считанный штрихкод не опозан", LvlEvent.INFO, macAddress);
+                playSound("Штрихкод_не_опознан.wav");
+                historyBox = new LinkedList<>();
+            }
+        }
+        else {
+            if (bufferCode.equals(boxContent.get(0).getNumberBox())) {
                 messageToPeople("Отсканируйте штрихкод ещё раз");
                 saveLog(bufferCode, "Инициация сборки короба.", LvlEvent.INFO, macAddress);
                 playSound("Подтвердите_начало_сборки_короба_сканированием_штрихкода_короба_еще_раз.wav");
             }
-
+            else {
+                messageToPeople("Вы уже собираете другой короб! Номер короба: " + boxContent.get(0).getNumberBox());
+                saveLog(bufferCode, "Попытка начать сборку другого короба. " +
+                        "Номер нового короба " + bufferCode + ". " +
+                        "Номер собираемого короба " + boxContent.get(0).getNumberBox(),
+                        LvlEvent.WARNING, macAddress);
+                playSound("Ошибка.wav");
+                historyBox = new LinkedList<>();
+                historyBox.add(boxContent.get(0).getNumberBox());
+            }
         }
-        else {
-
-            messageToPeople("Считан неопознанный штрихкод " + bufferCode);
-            saveLog(bufferCode, "Считанный штрихкод не опозан", LvlEvent.INFO, macAddress);
-            playSound("Штрихкод_не_опознан.wav");
-            historyBox = new LinkedList<>();
-
-        }
-
 
     }
     // инициализация отмены сборки короба
@@ -644,7 +769,8 @@ public class ListView extends VerticalLayout {
     }
     // отмена сборки корода
     public void cancelBuildBox() {
-        if (historyBox.get(0).equals(bufferCode)) {
+
+        if (historyBox.get(historyBox.size()-1).equals(bufferCode)) {
 
             Box box = boxRepository.findByNumberBox(numberBox.getValue()).orElse(new Box());
             if (!box.getNumberBox().isEmpty()) {
@@ -666,9 +792,11 @@ public class ListView extends VerticalLayout {
             saveLog(bufferCode,"Сборка короба " + historyBox.get(0) + ". Считан штрихкод другого короба.", LvlEvent.WARNING, macAddress);
             playSound("Отмена_сборки_не_выполнена._Отсканирован_другой_штрихкод_короба.wav");
         }
+
     }
     // вывод сообщений пользователю о том, что он считал штрихкод не того короба
     public void errorScanBox() {
+
         if (isStarted) {
             messageToPeople("Ошибка! Штрихкод не распознан! " + bufferCode);
             saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Считан неопознанный штрихкод", LvlEvent.WARNING, macAddress);
@@ -679,6 +807,7 @@ public class ListView extends VerticalLayout {
             saveLog(bufferCode, "Сборка короба не запущена. Считан неопознанный штрихкод", LvlEvent.WARNING, macAddress);
             playSound("Штрихкод_не_опознан.wav");
         }
+
     }
     // обработка считывания штрихкода марки
     public void processBarcodeMark() {
@@ -689,9 +818,11 @@ public class ListView extends VerticalLayout {
         if (isStarted) {
 
             if (firtsCheck) {
+                saveLog(bufferCode, "Добавление марки в короб", LvlEvent.SYSTEM_INFO, macAddress);
                 assemblyBox();
             }
             else {
+                saveLog(bufferCode, "Добавление марки в короб. Первое сканирование", LvlEvent.SYSTEM_INFO, macAddress);
                 firstScanMark();
                 firtsCheck = true;
             }
@@ -747,10 +878,11 @@ public class ListView extends VerticalLayout {
     }
     // сборка короба
     public void assemblyBox() {
-        int now = Integer.parseInt(inBoxNow.getValue());
         int need = Integer.parseInt(inBoxNeed.getValue());
         insertMark();
-        if (need - now == 1) {
+        int now = Integer.parseInt(inBoxNow.getValue());
+        saveLog("", "Сборка короба. Нужно собрать " + need + ". Собрано " + now, LvlEvent.SYSTEM_INFO, macAddress);
+        if (need - now == 0) {
             transferData();
             clearHistory();
             messageToPeople("Сборка короба завершена!");
@@ -761,8 +893,7 @@ public class ListView extends VerticalLayout {
     public void playSound(String nameSound) {
         com.qr.app.backend.entity.Sound forPlay = soundRepository.findByFilename(nameSound);
 
-        //applicationArguments.getSourceArgs();
-        // добавить создание пути по указанному агргументу
+        saveLog("", "Получение файла с музыкой", LvlEvent.SYSTEM_INFO, macAddress);
 
         File file = null;
 
@@ -796,8 +927,10 @@ public class ListView extends VerticalLayout {
             }
         }
 
-        sound.play();
-        sound.join();
+        if (sound != null) {
+            sound.play();
+            sound.join();
+        }
         sound.close();
         file.delete();
 

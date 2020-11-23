@@ -9,7 +9,6 @@ import java.io.File;
 @Getter
 @Setter
 @Data
-@NoArgsConstructor
 public class Sound extends AbstractEntity {
 
     private String filename;
@@ -18,6 +17,11 @@ public class Sound extends AbstractEntity {
     public Sound(String filename, byte[] file) {
         this.filename = filename;
         this.sound = file;
+    }
+
+    public Sound() {
+        this.filename = "";
+        this.sound = null;
     }
 
 }

@@ -1,6 +1,6 @@
-package com.qr.app.backend.repository.temporary;
+package com.qr.app.backend.repository.temporary.box;
 
-import com.qr.app.backend.entity.forSession.BoxContent;
+import com.qr.app.backend.entity.forSession.temporarytable.box.BoxContent;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -21,5 +21,7 @@ public interface BoxContentRepository extends JpaRepository<BoxContent, Long> {
 
     @Query("select mark from BoxContent mark where mark.macAddress = :macAddress")
     List<BoxContent> findByMacAddress(@Param("macAddress") String macAddress);
+
+    List<BoxContent> findByNumberBox(String numberBox);
 
 }

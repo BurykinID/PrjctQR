@@ -1,18 +1,16 @@
 package com.qr.app.backend.controllers.get;
 
-import com.qr.app.backend.Json.DateFormat;
-import com.qr.app.backend.Json.get.JsonReturn;
-import com.qr.app.backend.Json.get.MarkJson;
-import com.qr.app.backend.Json.get.MarkJsonCheck;
+import com.qr.app.backend.Json.get.*;
+import com.qr.app.backend.entity.HierarchyOfBoxes;
 import com.qr.app.backend.entity.Mark;
 import com.qr.app.backend.entity.db.StateDB;
+import com.qr.app.backend.repository.HierarchyOfBoxesRepository;
 import com.qr.app.backend.repository.MarkRepository;
 import com.qr.app.backend.repository.db.StateDBRepository;
 import com.qr.app.backend.repository.db.TransactionRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,13 +26,14 @@ public class GetController {
     private final MarkRepository markRepository;
     private final TransactionRepository transactionRepository;
     private final StateDBRepository stateDBRepository;
+    private final HierarchyOfBoxesRepository hierarchyOfBoxesRepository;
 
-    public GetController (MarkRepository markRepository, TransactionRepository transactionRepository, StateDBRepository stateDBRepository) {
+    public GetController (MarkRepository markRepository, TransactionRepository transactionRepository, StateDBRepository stateDBRepository, HierarchyOfBoxesRepository hierarchyOfBoxesRepository) {
         this.markRepository = markRepository;
         this.transactionRepository = transactionRepository;
         this.stateDBRepository = stateDBRepository;
+        this.hierarchyOfBoxesRepository = hierarchyOfBoxesRepository;
     }
-
 
     @GetMapping("/get")
     public JsonReturn checkMarkWithPartQueryInUrl (@RequestParam("cis") String cis,
@@ -44,33 +43,48 @@ public class GetController {
 
     }
 
+    @GetMapping("/get/ping")
+    public ResponseEntity ping() {
+        return new ResponseEntity("OK", HttpStatus.OK);
+    }
+
     // отбор записей по дате
     @GetMapping("/get/choise")
-    public List<MarkJson> getSample(@RequestBody DateFormat dateFrom) {
+    public MarkAndContainerJson getSample(@RequestParam("dateFrom") String dateFrom) {
 
         List<MarkJson> markJsons = new LinkedList<>();
+        List<HierarchyOfBox> containerJson = new LinkedList<>();
+        MarkAndContainerJson answer = new MarkAndContainerJson();
 
         Date date = null;
         try {
-            date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(dateFrom.getDateFrom());
+            date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").parse(dateFrom);
         } catch (ParseException e) {
-            markJsons.add(new MarkJson("Неверный формат даты", "Неверный формат даты", "Неверный формат даты"));
-            return markJsons;
+            return new MarkAndContainerJson();
         }
 
         List<Mark> marks = markRepository.findByDate(date.getTime());
         if (marks.size() > 0) {
             for (Mark mark: marks) {
-
                 date = new Date(mark.getDate());
                 SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
                 markJsons.add(new MarkJson(mark.getCis(), mark.getNumberBox(), simpleDateFormat.format(date)));
-
             }
-            return markJsons;
         }
 
-        return markJsons;
+        List<HierarchyOfBoxes> container = hierarchyOfBoxesRepository.findByDate(date.getTime());
+        if (container.size() > 0) {
+            for (HierarchyOfBoxes hierarchy : container) {
+                date = new Date(hierarchy.getDate());
+                SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                containerJson.add(new HierarchyOfBox(hierarchy.getNumberBox(), hierarchy.getNumberContainer(), simpleDateFormat.format(date)));
+            }
+        }
+
+        answer.setContainerJson(containerJson);
+        answer.setMarkJson(markJsons);
+
+        return answer;
 
     }
 
