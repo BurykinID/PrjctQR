@@ -333,7 +333,7 @@ public class ListView extends VerticalLayout {
 
             if (descriptionBox.size() > 0) {
                 for (DescriptionBox desc_box : descriptionBox) {
-                    Good good = goodRepository.findByBarcode(desc_box.getBarcode());
+                    Good good = goodRepository.findByBarcode(desc_box.getBarcode()).get();
                     BoxContent boxContent = new BoxContent();
                     boxContent.setMacAddress(macAddress);
                     boxContent.setBarcode(good.getBarcode());
@@ -424,7 +424,7 @@ public class ListView extends VerticalLayout {
                                 newMark(box, cis, boxContent);
                             }
                             if (needCount == nowCount) {
-                                Good good = goodRepository.findByBarcode(boxContent.getBarcode());
+                                Good good = goodRepository.findByBarcode(boxContent.getBarcode()).get();
                                 messageToPeople("Ошибка! Отложите " + good.getName() + "! Сборка этой обуви закончена!");
                                 saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Сборка данного вида обуви закончена!", LvlEvent.WARNING, macAddress);
                                 playSound("Сборка_этого_товара_уже_закончена.wav");
@@ -438,7 +438,7 @@ public class ListView extends VerticalLayout {
                     }
                 }
                 else {
-                    String nameShoes = goodRepository.findByBarcode(mark.getBarcode()).getName();
+                    String nameShoes = goodRepository.findByBarcode(mark.getBarcode()).get().getName();
                     messageToPeople("Ошибка! Обувь " + nameShoes + " не найдена в сборочном листе!");
                     saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Обувь " +nameShoes + " не найдена в сборочном листе!" , LvlEvent.WARNING, macAddress);
                     playSound("Этот_товар_не_найден_в_сборочном_листе.wav");

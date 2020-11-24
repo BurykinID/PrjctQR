@@ -11,7 +11,7 @@ import java.util.List;
 @Setter
 public class OrderDao {
 
-    private int number;
+    private String number;
     private String date;
     private String status;
     private List<VariantBoxDao> variantBoxes;

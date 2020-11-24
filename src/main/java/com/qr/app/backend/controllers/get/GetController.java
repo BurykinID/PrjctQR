@@ -44,11 +44,10 @@ public class GetController {
     }
 
     @GetMapping("/get/ping")
-    public ResponseEntity ping() {
-        return new ResponseEntity("OK", HttpStatus.OK);
+    public ResponseEntity<String> ping() {
+        return new ResponseEntity<>("OK", HttpStatus.OK);
     }
 
-    // отбор записей по дате
     @GetMapping("/get/choise")
     public MarkAndContainerJson getSample(@RequestParam("dateFrom") String dateFrom) {
 
@@ -88,6 +87,25 @@ public class GetController {
 
     }
 
+    @GetMapping("/get/state")
+    public ResponseEntity<String> getStateDB() {
+        List<StateDB> states = stateDBRepository.findAllSortByIdDesc();
+        if (states.size() > 0) {
+            if (states.get(0).isLock()) {
+                if (transactionRepository.findAll().size() > 0) {
+                    return new ResponseEntity<>("База ещё не заблокирована!", HttpStatus.OK);
+                }
+                else {
+                    return new ResponseEntity<>("База заблокирована", HttpStatus.OK);
+                }
+            }
+            else {
+                return new ResponseEntity<>("База разблокирована", HttpStatus.OK);
+            }
+        }
+        return new ResponseEntity<>("База разблокирована", HttpStatus.OK);
+    }
+
     public JsonReturn checkMark (String cis, String numberBox) {
         Mark mark = markRepository.findByCis(cis).orElse(new Mark());
         MarkJsonCheck markJson = new MarkJsonCheck();
@@ -118,30 +136,4 @@ public class GetController {
             return new JsonReturn("Не найдена такая марка", markJson);
         }
     }
-
-    @GetMapping("/get/state")
-    public ResponseEntity getStateDB() {
-
-        List<StateDB> states = stateDBRepository.findAllSortByIdDesc();
-        if (states.size() > 0) {
-
-            if (states.get(0).isLock()) {
-                if (transactionRepository.findAll().size() > 0) {
-                    return new ResponseEntity("База ещё не заблокирована!", HttpStatus.OK);
-                }
-                else {
-                    return new ResponseEntity("База заблокирована", HttpStatus.OK);
-                }
-            }
-            else {
-                return new ResponseEntity("База разблокирована", HttpStatus.OK);
-            }
-
-        }
-
-        return new ResponseEntity("База разблокирована", HttpStatus.OK);
-
-
-    }
-
 }

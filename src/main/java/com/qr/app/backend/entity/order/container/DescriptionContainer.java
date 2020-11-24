@@ -30,4 +30,11 @@ public class DescriptionContainer extends AbstractEntity {
         this.variantContainer = new VariantContainer();
     }
 
+    public DescriptionContainer(int numberLine, String numberVariantBox, int count, VariantContainer variantContainer) {
+        this.numberLine = numberLine;
+        this.numberVariantBox = numberVariantBox;
+        this.count = count;
+        this.variantContainer = variantContainer;
+    }
+
 }
