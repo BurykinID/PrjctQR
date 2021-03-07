@@ -12,4 +12,9 @@ public class VariantBoxDao {
     private int countInBox;
     private int countBox;
 
+    public VariantBoxDao (String numberVariant, int countInBox, int countBox) {
+        this.numberVariant = numberVariant;
+        this.countInBox = countInBox;
+        this.countBox = countBox;
+    }
 }

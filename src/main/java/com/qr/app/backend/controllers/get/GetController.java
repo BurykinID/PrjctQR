@@ -38,9 +38,34 @@ public class GetController {
     @GetMapping("/get")
     public JsonReturn checkMarkWithPartQueryInUrl (@RequestParam("cis") String cis,
                                                    @RequestParam("numberBox") String numberBox) {
-
-        return checkMark(cis, numberBox);
-
+        Mark mark = markRepository.findByCis(cis).orElse(new Mark());
+        MarkJsonCheck markJson = new MarkJsonCheck();
+        if (!mark.getCis().isEmpty()) {
+            markJson.setCis(mark.getCis());
+            markJson.setNumberBox(mark.getNumberBox());
+            markJson.setBarcode(mark.getBarcode());
+            if (mark.getNumberBox().equals(numberBox)) {
+                return new JsonReturn("Ошибка, марка уже добавлена в этот короб", markJson);
+            }
+            else if (!mark.getNumberBox().equals(numberBox) && !mark.getNumberBox().equals("")) {
+                String numberBoxInBase = mark.getNumberBox();
+                mark.setNumberBox(numberBox);
+                return new JsonReturn("Ошибка, марка уже добавлена в другой короб: " + numberBoxInBase, markJson);
+            }
+            else {
+                mark.setNumberBox(numberBox);
+                markJson.setNumberBox(numberBox);
+                mark.setDate(new Date().getTime());
+                markRepository.save(mark);
+                return new JsonReturn("ОK", markJson);
+            }
+        }
+        else {
+            markJson.setCis(cis);
+            markJson.setNumberBox(numberBox);
+            markJson.setBarcode("");
+            return new JsonReturn("Не найдена такая марка", markJson);
+        }
     }
 
     @GetMapping("/get/ping")
@@ -48,7 +73,7 @@ public class GetController {
         return new ResponseEntity<>("OK", HttpStatus.OK);
     }
 
-    @GetMapping("/get/choise")
+    @GetMapping("/get/containerAndMarkFrom")
     public MarkAndContainerJson getSample(@RequestParam("dateFrom") String dateFrom) {
 
         List<MarkJson> markJsons = new LinkedList<>();
@@ -106,34 +131,4 @@ public class GetController {
         return new ResponseEntity<>("База разблокирована", HttpStatus.OK);
     }
 
-    public JsonReturn checkMark (String cis, String numberBox) {
-        Mark mark = markRepository.findByCis(cis).orElse(new Mark());
-        MarkJsonCheck markJson = new MarkJsonCheck();
-        if (!mark.getCis().isEmpty()) {
-            markJson.setCis(mark.getCis());
-            markJson.setNumberBox(mark.getNumberBox());
-            markJson.setBarcode(mark.getBarcode());
-            if (mark.getNumberBox().equals(numberBox)) {
-                return new JsonReturn("Ошибка, марка уже добавлена в этот короб", markJson);
-            }
-            else if (!mark.getNumberBox().equals(numberBox) && !mark.getNumberBox().equals("")) {
-                String numberBoxInBase = mark.getNumberBox();
-                mark.setNumberBox(numberBox);
-                return new JsonReturn("Ошибка, марка уже добавлена в другой короб: " + numberBoxInBase, markJson);
-            }
-            else {
-                mark.setNumberBox(numberBox);
-                markJson.setNumberBox(numberBox);
-                mark.setDate(new Date().getTime());
-                markRepository.save(mark);
-                return new JsonReturn("Ок", markJson);
-            }
-        }
-        else {
-            markJson.setCis(cis);
-            markJson.setNumberBox(numberBox);
-            markJson.setBarcode("");
-            return new JsonReturn("Не найдена такая марка", markJson);
-        }
-    }
 }

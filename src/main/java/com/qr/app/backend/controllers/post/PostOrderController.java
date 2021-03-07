@@ -77,12 +77,19 @@ public class PostOrderController {
         for (OrderDao orderDao : orderDaoList) {
             try {
                 Order order = orderRepository.findByNumber(orderDao.getNumber()).orElse(new Order());
-                if (!order.getNumber().isEmpty()) {
-                    order.updateOrder(orderDao.getDate(), orderDao.getStatus());
+                if (order.getNumber() != null) {
+                    if (!order.getNumber().isEmpty()) {
+                        order.updateOrder(orderDao.getDate(), orderDao.getStatus());
+                    }
+                    else {
+                        order = new Order(orderDao);
+                    }
                 }
                 else {
                     order = new Order(orderDao);
                 }
+
+
                 orderRepository.save(order);
 
                 List<VariantBox> variantBoxesForDelete = variantsBoxRepository.findByOrderNumber(order.getNumber());

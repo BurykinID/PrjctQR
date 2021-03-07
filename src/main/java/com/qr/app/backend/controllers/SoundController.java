@@ -26,9 +26,17 @@ public class SoundController {
         try {
             for (MultipartFile file : files) {
                 Sound sound = soundRepository.findByFilename(file.getOriginalFilename());
-                if (sound.getFilename().isEmpty()) {
+                if (sound!=null) {
+                    if (sound.getFilename().isEmpty()) {
+                        sound.setFilename(file.getOriginalFilename());
+                    }
+                }
+                else {
+                    sound = new Sound();
                     sound.setFilename(file.getOriginalFilename());
                 }
+
+
                 sound.setSound(file.getBytes());
                 soundRepository.save(sound);
             }

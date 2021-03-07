@@ -77,12 +77,18 @@ public class PostContainerController {
         for (OrderContainerDao orderContainerDao : containers) {
             try {
                 OrderContainer orderContainer = orderContainerRepository.findByNumber(orderContainerDao.getNumber()).orElse(new OrderContainer());
-                if (orderContainer.getNumber().isEmpty()) {
-                    orderContainer.updateContainer(orderContainerDao.getDate(), orderContainerDao.getStatus());
+                if (orderContainer.getNumber() != null) {
+                    if (orderContainer.getNumber().isEmpty()) {
+                        orderContainer.updateContainer(orderContainerDao.getDate(), orderContainerDao.getStatus());
+                    }
+                    else {
+                        orderContainer = new OrderContainer(orderContainerDao);
+                    }
                 }
                 else {
                     orderContainer = new OrderContainer(orderContainerDao);
                 }
+
                 orderContainerRepository.save(orderContainer);
 
                 List<VariantContainer> variantContainersForDelete = variantsContainerRepository.findByOrderContainer(orderContainer.getNumber());
@@ -100,6 +106,7 @@ public class PostContainerController {
                 descriptionContainers.addAll(descriptionContainerFormation(orderContainerDao, variantContainerList));
 
                 containerList.addAll(containerFormation(orderContainerDao, variantContainerList));
+
             } catch (ParseException e) {
                 e.printStackTrace();
             }

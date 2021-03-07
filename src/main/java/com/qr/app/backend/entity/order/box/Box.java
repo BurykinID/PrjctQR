@@ -20,7 +20,7 @@ public class Box extends AbstractEntity {
     @Column(unique = true)
     private String numberBox;
     private String status;
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "number_variant")
     private VariantBox variantBox;
 

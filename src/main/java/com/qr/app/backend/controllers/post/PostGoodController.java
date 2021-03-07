@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedList;
 import java.util.List;
 
 @RestController
@@ -28,16 +29,17 @@ public class PostGoodController {
     }
     @PostMapping("/post/updateGoods")
     public ResponseEntity<String> updateGoods(@RequestBody List<Good> goods) {
-        // количество записей в таблице, до добавления товаров
         long countGoodsBeforeInsert = goodRepository.count();
+        List<Good> goodList = new LinkedList<>();
         for (Good good : goods) {
             Good changesGood = goodRepository.findByBarcode(good.getBarcode()).orElse(new Good());
             if (!changesGood.getBarcode().isEmpty())
                 changesGood.updateGood(good.getName(), good.getArticle(), good.getColor(), good.getSize());
             else
                 changesGood = new Good(good.getBarcode(), good.getName(), good.getArticle(), good.getColor(), good.getSize());
-            goodRepository.save(changesGood);
+            goodList.add(changesGood);
         }
+        goodRepository.saveAll(goodList);
         long countInsertInTable = goodRepository.count() - countGoodsBeforeInsert;
         return new ResponseEntity<>("Добавлено записей: " + countInsertInTable, HttpStatus.OK);
     }

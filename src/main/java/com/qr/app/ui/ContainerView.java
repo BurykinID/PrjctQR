@@ -1,5 +1,6 @@
 package com.qr.app.ui;
 
+import com.qr.app.backend.Configurer;
 import com.qr.app.backend.entity.HierarchyOfBoxes;
 import com.qr.app.backend.entity.db.StateDB;
 import com.qr.app.backend.entity.db.Transaction;
@@ -33,21 +34,13 @@ import com.vaadin.flow.component.textfield.TextField;
 import com.vaadin.flow.router.Route;
 import jssc.SerialPort;
 import jssc.SerialPortException;
-import jssc.SerialPortList;
-import org.hibernate.NonUniqueResultException;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
 
 import java.io.*;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Route (value = "container")
 @Push
@@ -63,8 +56,6 @@ public class ContainerView extends VerticalLayout {
 
     private Dialog dialog = new Dialog();
     private String bufferCode;
-
-    private boolean lock = false;
 
     private SerialPort serialPort;
 
@@ -95,33 +86,19 @@ public class ContainerView extends VerticalLayout {
         this.transactionRepository = transactionRepository;
         this.soundRepository = soundRepository;
         this.hierarchyOfBoxesRepo = hierarchyOfBoxesRepo;
-
         addClassName("mark-view");
         setSizeFull();
         configureGrid();
-
         add(getToolBar(), grid);
-
-        macAddress = getMacAddress();
-
+        macAddress = Configurer.getMacAddress();
+        if (macAddress.isEmpty()) {
+            saveLog("", "Строка с mac адресом не найдена в файле. Убедитесь, что файл application.properties находится в каталоге с jar файлом", LvlEvent.SYSTEM_INFO, "");
+        }
         bufferCode = "";
         historyBox = new ArrayList<>();
-
-        this.logSessionRepository.save(new LogSession(new Date().getTime(), "", "Начало создания конструктора", LvlEvent.SYSTEM_INFO, "-"));
-
-        String[] portNames = SerialPortList.getPortNames();
-
-        for (int i = 0; i < portNames.length; i++) {
-            System.out.println(portNames[i]);
-        }
-
-        serialPort = new SerialPort(getDevPort());
+        serialPort = new SerialPort(Configurer.getDevPort());
         refresh:
-
         try {
-
-            this.logSessionRepository.save(new LogSession(new Date().getTime(), "", "Попытка подключения к сканеру", LvlEvent.SYSTEM_INFO, "-"));
-
             serialPort.openPort();
             serialPort.setParams(SerialPort.BAUDRATE_9600,
                     SerialPort.DATABITS_8,
@@ -130,32 +107,21 @@ public class ContainerView extends VerticalLayout {
             serialPort.setFlowControlMode(SerialPort.FLOWCONTROL_RTSCTS_IN |
                     SerialPort.FLOWCONTROL_RTSCTS_OUT);
 
-            this.logSessionRepository.save(new LogSession(new Date().getTime(), "", "Настройки подготовлены для сканера", LvlEvent.SYSTEM_INFO, "-"));
-
-            serialPort.addEventListener(click -> {
-                if (!lock) {
-                    this.logSessionRepository.save(new LogSession(new Date().getTime(), "", "На сканер пришла информация", LvlEvent.SYSTEM_INFO, "-"));
+            serialPort.addEventListener(eventKey -> {
                     StringBuilder sb = new StringBuilder();
                     try {
-                        saveLog("", "Подготовка считывания значения", LvlEvent.SYSTEM_INFO, macAddress);
-                        sb.append(serialPort.readString(click.getEventValue()));
-                        saveLog("", "Считывание значения " + sb.toString(), LvlEvent.SYSTEM_INFO, macAddress);
+                        sb.append(serialPort.readString(eventKey.getEventValue()));
                         UI ui = getUI().get();
                         ui.access(() -> {
-                            saveLog("", "Управление потоком передано " + sb.toString(), LvlEvent.SYSTEM_INFO, macAddress);
                             String data = sb.toString();
                             if (data.length() <= 255) {
                                 saveLog("", "Пришло " + data, LvlEvent.SYSTEM_INFO, macAddress);
                                 int symbol = sb.indexOf("\r\n");
-                                saveLog("", "Обработка " + symbol, LvlEvent.SYSTEM_INFO, macAddress);
                                 if (symbol != -1){
-                                    lock = true;
                                     bufferCode = bufferCode.concat(data.substring(0, symbol));
-                                    saveLog(bufferCode, "На сканер пришла информация", LvlEvent.SYSTEM_INFO, macAddress);
                                     analyseCode();
                                 }
                                 else {
-                                    saveLog(bufferCode, "Сборка bufferCode " + data, LvlEvent.SYSTEM_INFO, macAddress);
                                     bufferCode += data;
                                 }
                             }
@@ -169,17 +135,7 @@ public class ContainerView extends VerticalLayout {
                         saveLog("", "Ошибка считывания значения со сканера", LvlEvent.SYSTEM_INFO, macAddress);
                         e.printStackTrace();
                     }
-                }
-                else {
-                    saveLog("", "Ответ от сканера ещё не получен. Ждите.", LvlEvent.INFO, macAddress);
-                    try {
-                        saveLog("", "Считывание находится в блокировке. Но пришло значение" + serialPort.readString(click.getEventValue()), LvlEvent.SYSTEM_INFO, macAddress);
-                    } catch (SerialPortException e) {
-                        saveLog("", "Ошибка считывания значения со сканера", LvlEvent.SYSTEM_INFO, macAddress);
-                        e.printStackTrace();
-                    }
-                    messageToPeople("Вы ещё не получили ответа от программы. Дождитесь его, прежде чем продолжить сканирование.");
-                }
+
             }, SerialPort.MASK_RXCHAR);
         }
         catch (SerialPortException ex) {
@@ -199,26 +155,6 @@ public class ContainerView extends VerticalLayout {
         grid.addColumn(ContainerContent::getCountNeed).setHeader("Количество надо");
         grid.getColumns().forEach(col -> col.setAutoWidth(true));
     }
-    //получение порта устройства
-    private String getDevPort () throws FileNotFoundException {
-        BufferedReader br = new BufferedReader(new FileReader(new File(new File(".").getAbsolutePath(), "application.properties")));
-        try {
-            String s = br.readLine();
-            while (s != null) {
-                Pattern pattern = Pattern.compile("device.port=(.[^\r\n]*)");
-                Matcher matcher = pattern.matcher(s);
-                if (matcher.find()) {
-                    return matcher.group(1);
-                }
-                s = br.readLine();
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        saveLog("", "Устройство не обнаружено. Убедитесь, что в файле настроек прописан device.port=", LvlEvent.SYSTEM_INFO, "");
-        return "COM3";
-
-    }
     // конфигурация текстовых полей
     public HorizontalLayout getToolBar () {
 
@@ -236,114 +172,58 @@ public class ContainerView extends VerticalLayout {
         LogSession event = new LogSession(new Date().getTime(), bufferCode, descriptionEvent, lvlEvent, macAddress);
         logSessionRepository.save(event);
     }
-    // получение mac адреса компьютера
-    public String getMacAddress() throws FileNotFoundException {
-
-        InetAddress ip = null;
-        try {
-            ip = InetAddress.getLocalHost();
-
-            try {
-                NetworkInterface network = NetworkInterface.getByInetAddress(ip);
-
-                byte[] mac = network.getHardwareAddress();
-                StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < mac.length; i++) {
-                    sb.append(String.format("%02X%s", mac[i], (i < mac.length-1) ?  "-" : ""));
-                }
-
-                String macAddr = sb.toString();
-
-                if (!macAddr.isEmpty()) {
-                    return macAddr;
-                }
-                else {
-                    return getMacInFile();
-                }
-
-            } catch (SocketException e) {
-                saveLog("", "SocketException", LvlEvent.SYSTEM_INFO, "");
-                return getMacInFile();
-            }
-
-        } catch (UnknownHostException e) {
-            saveLog("", "UnknownHostException", LvlEvent.SYSTEM_INFO, "");
-            return getMacInFile();
-        }
-
-    }
-    // получение mac адреса компьютера из файла, используется в случае, если не удалось определить mac адрес с помощью метода getMacAddress
-    public String getMacInFile() throws FileNotFoundException{
-        BufferedReader br = new BufferedReader(new FileReader(new File(new File(".").getAbsolutePath(), "application.properties")));
-        try {
-            String s = br.readLine();
-            while (s != null) {
-                Pattern pattern = Pattern.compile("mac=(.[^\r\n]*)");
-                Matcher matcher = pattern.matcher(s);
-                if (matcher.find()) {
-                    return matcher.group(1);
-                }
-                s = br.readLine();
-            }
-        }
-        catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        saveLog("", "Строка с mac адресом не найдена в файле. Убедитесь, что файл application.properties находится в каталоге с jar файлом", LvlEvent.SYSTEM_INFO, "");
-        return "";
-    }
     // воспроизведение звука
     public void playSound(String nameSound) {
         com.qr.app.backend.entity.Sound forPlay = soundRepository.findByFilename(nameSound);
 
-        saveLog("", "Получение файла с музыкой", LvlEvent.SYSTEM_INFO, macAddress);
+        if (!forPlay.getFilename().equals("Ок.wav")) {
+            saveLog("", "Получение файла с музыкой", LvlEvent.SYSTEM_INFO, macAddress);
 
-        File file = null;
+            File file = null;
 
-        try {
-            file = new File(new File(".").getAbsolutePath(), forPlay.getFilename());
-        }
-        catch (NullPointerException e) {
-            e.printStackTrace();
-        }
-
-        Sound sound = null;
-        if (!file.exists()) {
             try {
-                file.createNewFile();
-                OutputStream outStream = new FileOutputStream(file);
-                outStream.write(forPlay.getSound());
-                outStream.close();
-                sound = new Sound(file);
-            } catch (IOException e) {
+                file = new File(new File(".").getAbsolutePath(), forPlay.getFilename());
+            }
+            catch (NullPointerException e) {
                 e.printStackTrace();
             }
-        }
-        else {
-            try {
-                OutputStream outStream = new FileOutputStream(file);
-                outStream.write(forPlay.getSound());
-                outStream.close();
-                sound = new Sound(file);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
 
-        if (sound != null) {
-            sound.play();
-            sound.join();
+            Sound sound = null;
+            if (!file.exists()) {
+                try {
+                    file.createNewFile();
+                    OutputStream outStream = new FileOutputStream(file);
+                    outStream.write(forPlay.getSound());
+                    outStream.close();
+                    sound = new Sound(file);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            else {
+                try {
+                    OutputStream outStream = new FileOutputStream(file);
+                    outStream.write(forPlay.getSound());
+                    outStream.close();
+                    sound = new Sound(file);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            if (sound != null) {
+                sound.play();
+                //sound.join();
+            }
+            sound.close();
+            file.delete();
         }
-        sound.close();
-        file.delete();
 
     }
     // вывод сообщений на экран
     public void messageToPeople (String message){
 
         dialog.close();
-
 
         if (!message.isEmpty()) {
             dialog = new Dialog();
@@ -681,7 +561,6 @@ public class ContainerView extends VerticalLayout {
             VariantContainer variantCont = cont.getVariantContainer();
             List<DescriptionContainer> descriptionCont = descriptionContRepo.findByVariantContainer(variantCont);
             List<ContainerContent> contContents = new LinkedList<>();
-
             if (descriptionCont.size() > 0) {
                 for (DescriptionContainer desc_cont : descriptionCont) {
                     ContainerContent contContent = new ContainerContent();
@@ -842,6 +721,7 @@ public class ContainerView extends VerticalLayout {
         messageToPeople("Считан неопознанный штрихкод!" + bufferCode);
         saveLog(bufferCode, "Считанный штрихкод не опозан", LvlEvent.INFO, macAddress);
         playSound("Штрихкод_не_опознан.wav");
+        bufferCode = "";
     }
     // Считан неопознанный штрихкод. контейнер
     public void errorMsgContStepOne() {

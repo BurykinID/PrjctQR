@@ -20,7 +20,7 @@ public class Container extends AbstractEntity{
     @Column(unique = true)
     private String numberContainer;
     private String status;
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn (name = "number_variant")
     private VariantContainer variantContainer;
 

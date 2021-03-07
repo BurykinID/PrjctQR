@@ -18,5 +18,15 @@ public class OrderDao {
     private List<DescriptionBoxDao> descriptionBoxes;
     private List<BoxDao> boxes;
 
+    public OrderDao () {
+    }
 
+    public OrderDao (String number, String date, String status, List<VariantBoxDao> variantBoxes, List<DescriptionBoxDao> descriptionBoxes, List<BoxDao> boxes) {
+        this.number = number;
+        this.date = date;
+        this.status = status;
+        this.variantBoxes = variantBoxes;
+        this.descriptionBoxes = descriptionBoxes;
+        this.boxes = boxes;
+    }
 }

@@ -1,11 +1,12 @@
 package com.qr.app.backend.entity.order.box;
 
-import com.qr.app.backend.Json.box.OrderDao;
 import com.qr.app.backend.Json.box.dao.BoxDao;
 import com.qr.app.backend.Json.box.dao.DescriptionBoxDao;
 import com.qr.app.backend.Json.box.dao.VariantBoxDao;
 import com.qr.app.backend.entity.AbstractEntity;
-import lombok.*;
+import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import javax.persistence.*;
 import java.util.LinkedList;

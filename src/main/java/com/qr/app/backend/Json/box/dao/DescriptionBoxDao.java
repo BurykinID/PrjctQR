@@ -13,4 +13,11 @@ public class DescriptionBoxDao {
     private String barcode;
     private int count;
 
+    public DescriptionBoxDao (String numberVariant, int numberLine, String barcode, int count) {
+        this.numberVariant = numberVariant;
+        this.numberLine = numberLine;
+        this.barcode = barcode;
+        this.count = count;
+    }
+
 }
