@@ -1,10 +1,8 @@
 package com.qr.app.ui;
 
-import com.qr.app.backend.Configurer;
+import com.qr.app.backend.*;
 import com.qr.app.backend.entity.HierarchyOfBoxes;
-import com.qr.app.backend.entity.db.StateDB;
 import com.qr.app.backend.entity.db.Transaction;
-import com.qr.app.backend.entity.forSession.LogSession;
 import com.qr.app.backend.entity.forSession.LvlEvent;
 import com.qr.app.backend.entity.forSession.temporarytable.container.ContainerBox;
 import com.qr.app.backend.entity.forSession.temporarytable.container.ContainerContent;
@@ -22,7 +20,9 @@ import com.qr.app.backend.repository.order.container.DescriptionContainerReposit
 import com.qr.app.backend.repository.sound.SoundRepository;
 import com.qr.app.backend.repository.temporary.container.ContainerBoxRepository;
 import com.qr.app.backend.repository.temporary.container.ContainerContentRepository;
-import com.qr.app.backend.sound.Sound;
+import com.qr.app.backend.service.LogService;
+import com.qr.app.backend.service.SoundService;
+import com.qr.app.backend.service.StateDBService;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
@@ -54,6 +54,8 @@ public class ContainerView extends VerticalLayout {
     private TextField inBoxNeed = new TextField();
     private TextField inBoxNow = new TextField();
 
+    private Player player;
+
     private Dialog dialog = new Dialog();
     private String bufferCode;
 
@@ -74,8 +76,9 @@ public class ContainerView extends VerticalLayout {
     private final TransactionRepository transactionRepository;
     private final SoundRepository soundRepository;
     private final HierarchyOfBoxesRepository hierarchyOfBoxesRepo;
+    private final SoundService soundService;
 
-    public ContainerView (ContainerRepository containerRepo, DescriptionContainerRepository descriptionContRepo, BoxRepository boxRepo, ContainerContentRepository contContentRepo, ContainerBoxRepository contBoxRepo, LogSessionRepository logSessionRepository, StateDBRepository stateDBRepository, TransactionRepository transactionRepository, SoundRepository soundRepository, HierarchyOfBoxesRepository hierarchyOfBoxesRepo) throws FileNotFoundException {
+    public ContainerView (ContainerRepository containerRepo, DescriptionContainerRepository descriptionContRepo, BoxRepository boxRepo, ContainerContentRepository contContentRepo, ContainerBoxRepository contBoxRepo, LogSessionRepository logSessionRepository, StateDBRepository stateDBRepository, TransactionRepository transactionRepository, SoundRepository soundRepository, HierarchyOfBoxesRepository hierarchyOfBoxesRepo, SoundService soundService) throws FileNotFoundException {
         this.containerRepo = containerRepo;
         this.descriptionContRepo = descriptionContRepo;
         this.boxRepo = boxRepo;
@@ -86,14 +89,14 @@ public class ContainerView extends VerticalLayout {
         this.transactionRepository = transactionRepository;
         this.soundRepository = soundRepository;
         this.hierarchyOfBoxesRepo = hierarchyOfBoxesRepo;
+        this.soundService = soundService;
+
         addClassName("mark-view");
         setSizeFull();
         configureGrid();
         add(getToolBar(), grid);
+        player = new Player(soundService);
         macAddress = Configurer.getMacAddress();
-        if (macAddress.isEmpty()) {
-            saveLog("", "Строка с mac адресом не найдена в файле. Убедитесь, что файл application.properties находится в каталоге с jar файлом", LvlEvent.SYSTEM_INFO, "");
-        }
         bufferCode = "";
         historyBox = new ArrayList<>();
         serialPort = new SerialPort(Configurer.getDevPort());
@@ -113,37 +116,25 @@ public class ContainerView extends VerticalLayout {
                         sb.append(serialPort.readString(eventKey.getEventValue()));
                         UI ui = getUI().get();
                         ui.access(() -> {
-                            String data = sb.toString();
-                            if (data.length() <= 255) {
-                                saveLog("", "Пришло " + data, LvlEvent.SYSTEM_INFO, macAddress);
-                                int symbol = sb.indexOf("\r\n");
-                                if (symbol != -1){
-                                    bufferCode = bufferCode.concat(data.substring(0, symbol));
-                                    analyseCode();
-                                }
-                                else {
-                                    bufferCode += data;
-                                }
-                            }
+                            bufferCode = Scanner.buildQrCode(sb);
+                            if (!bufferCode.isEmpty())
+                                analyseCode();
                             else {
-                                bufferCode = "";
-                                messageToPeople("Произошла ошибка. Считайте штрихкод ещё раз, чуть медленнее.");
-                                playSound("Ошибка.wav");
+                                Noticer noticer = new Noticer();
+                                noticer.readQrSomeSlowly();
                             }
                         });
                     } catch (SerialPortException e) {
-                        saveLog("", "Ошибка считывания значения со сканера", LvlEvent.SYSTEM_INFO, macAddress);
+                        LogService.saveLog("", "Ошибка считывания значения со сканера", LvlEvent.SYSTEM_INFO, macAddress);
                         e.printStackTrace();
                     }
-
             }, SerialPort.MASK_RXCHAR);
         }
         catch (SerialPortException ex) {
-            saveLog("", "Порт занят.", LvlEvent.CRITICAL, macAddress);
+            LogService.saveLog("", "Порт занят.", LvlEvent.CRITICAL, macAddress);
             messageToPeople("Порт занят. Проверьте, что сканер использует COM порт указанный в настройках! Выключите приложения, которые используют сканер. Перезапустите приложение");
             break refresh;
         }
-
     }
     // конфигурация таблицы
     public void configureGrid () {
@@ -167,59 +158,6 @@ public class ContainerView extends VerticalLayout {
         return layout;
 
     }
-    // запись событий в базу данных
-    public void saveLog (String bufferCode, String descriptionEvent, LvlEvent lvlEvent, String macAddress) {
-        LogSession event = new LogSession(new Date().getTime(), bufferCode, descriptionEvent, lvlEvent, macAddress);
-        logSessionRepository.save(event);
-    }
-    // воспроизведение звука
-    public void playSound(String nameSound) {
-        com.qr.app.backend.entity.Sound forPlay = soundRepository.findByFilename(nameSound);
-
-        if (!forPlay.getFilename().equals("Ок.wav")) {
-            saveLog("", "Получение файла с музыкой", LvlEvent.SYSTEM_INFO, macAddress);
-
-            File file = null;
-
-            try {
-                file = new File(new File(".").getAbsolutePath(), forPlay.getFilename());
-            }
-            catch (NullPointerException e) {
-                e.printStackTrace();
-            }
-
-            Sound sound = null;
-            if (!file.exists()) {
-                try {
-                    file.createNewFile();
-                    OutputStream outStream = new FileOutputStream(file);
-                    outStream.write(forPlay.getSound());
-                    outStream.close();
-                    sound = new Sound(file);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-            else {
-                try {
-                    OutputStream outStream = new FileOutputStream(file);
-                    outStream.write(forPlay.getSound());
-                    outStream.close();
-                    sound = new Sound(file);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-
-            if (sound != null) {
-                sound.play();
-                //sound.join();
-            }
-            sound.close();
-            file.delete();
-        }
-
-    }
     // вывод сообщений на экран
     public void messageToPeople (String message){
 
@@ -235,14 +173,14 @@ public class ContainerView extends VerticalLayout {
     // анализ штрихкодов
     public void analyseCode() {
         if (bufferCode.length() == 18) {
-            boolean lockDB = checkDBState();
-            saveLog(bufferCode, "Обработка штрихкода", LvlEvent.SYSTEM_INFO, macAddress);
+            boolean lockDB = StateDBService.getDbState().isLock();
+            LogService.saveLog(bufferCode, "Обработка штрихкода", LvlEvent.SYSTEM_INFO, macAddress);
             if (!lockDB) {
                 if (bufferCode.charAt(0) == '2') {
                     processBarcodeContainer();
                 }
                 else {
-                    saveLog(bufferCode, "Обработка штрихкода", LvlEvent.SYSTEM_INFO, macAddress);
+                    LogService.saveLog(bufferCode, "Обработка штрихкода", LvlEvent.SYSTEM_INFO, macAddress);
                     if (historyBox.size() == 3 ) {
                         historyBox.remove(2);
                     }
@@ -254,14 +192,14 @@ public class ContainerView extends VerticalLayout {
             }
         }
         else if (bufferCode.length() == 20) {
-            boolean lockDB = checkDBState();
-            saveLog(bufferCode, "Обработка штрихкода", LvlEvent.SYSTEM_INFO, macAddress);
+            boolean lockDB = StateDBService.getDbState().isLock();
+            LogService.saveLog(bufferCode, "Обработка штрихкода", LvlEvent.SYSTEM_INFO, macAddress);
             if (!lockDB) {
                 if (bufferCode.charAt(2) == '2' && bufferCode.charAt(0) == '0' && bufferCode.charAt(0) == '0') {
                     processBarcodeContainer();
                 }
                 else {
-                    saveLog(bufferCode, "Обработка штрихкода", LvlEvent.SYSTEM_INFO, macAddress);
+                    LogService.saveLog(bufferCode, "Обработка штрихкода", LvlEvent.SYSTEM_INFO, macAddress);
                     if (historyBox.size() == 3 ) {
                         historyBox.remove(2);
                     }
@@ -279,28 +217,28 @@ public class ContainerView extends VerticalLayout {
             errorMsgContQrDontFind();
         }
         bufferCode = "";
-        lock = false;
     }
     // обработка считывания штрихкода содержимого
     public void processBarcodeBox () {
         transactionRepository.save(new Transaction(macAddress));
-        saveLog(bufferCode, "Транзакция открыта", LvlEvent.CRITICAL, macAddress);
+        LogService.saveLog(bufferCode, "Транзакция открыта", LvlEvent.CRITICAL, macAddress);
         if (isStarted) {
             if (firtsCheck) {
-                saveLog(bufferCode, "Добавление короба в короб", LvlEvent.SYSTEM_INFO, macAddress);
+                LogService.saveLog(bufferCode, "Добавление короба в короб", LvlEvent.SYSTEM_INFO, macAddress);
                 assemblyBox();
             }
             else {
-                saveLog(bufferCode, "Добавление короба в короб. Первое сканирование", LvlEvent.SYSTEM_INFO, macAddress);
+                LogService.saveLog(bufferCode, "Добавление короба в короб. Первое сканирование", LvlEvent.SYSTEM_INFO, macAddress);
                 firstScanBox();
                 firtsCheck = true;
             }
         }
         else {
-            errorMsgBoxAttentionBuildDontStart();
+            messageToPeople("Внимание!\r\nДля начала сборки необходимо отсканировать штрихкод короба!");
+            Noticer.errorMsgBoxAttentionBuildDontStart(bufferCode, macAddress);
         }
         transactionRepository.delete(transactionRepository.findBySession(macAddress));
-        saveLog(bufferCode, "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);
+        LogService.saveLog(bufferCode, "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);
     }
     // обработка первого сканирования марки пользователем
     public void firstScanBox () {
@@ -333,17 +271,17 @@ public class ContainerView extends VerticalLayout {
         int need = Integer.parseInt(inBoxNeed.getValue());
         insertBox();
         int now = Integer.parseInt(inBoxNow.getValue());
-        saveLog("", "Сборка короба. Нужно собрать " + need + ". Собрано " + now, LvlEvent.SYSTEM_INFO, macAddress);
+        LogService.saveLog("", "Сборка короба. Нужно собрать " + need + ". Собрано " + now, LvlEvent.SYSTEM_INFO, macAddress);
         if (need - now == 0) {
             transferData();
             clearHistory();
             messageToPeople("Сборка короба завершена!");
-            playSound("Короб_собран.wav");
+            player.playSound("Короб_собран.wav");
         }
     }
     // перенос данных из временных баз, в постоянные
     public void transferData() {
-        saveLog("", "Начало переноса данных из временной базы в постоянную.", LvlEvent.SYSTEM_INFO, macAddress);
+        LogService.saveLog("", "Начало переноса данных из временной базы в постоянную.", LvlEvent.SYSTEM_INFO, macAddress);
         List<ContainerBox> containerBoxes = contBoxRepo.findByMacAddress(macAddress);
         List<HierarchyOfBoxes> modifiedBoxes = new LinkedList<>();
         Container container = containerRepo.findByNumberContainer(containerBoxes.get(0).getNumberContainer()).get();
@@ -357,7 +295,7 @@ public class ContainerView extends VerticalLayout {
         }
         containerRepo.save(container);
         hierarchyOfBoxesRepo.saveAll(modifiedBoxes);
-        saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + " завершена", LvlEvent.INFO, macAddress);
+        LogService.saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + " завершена", LvlEvent.INFO, macAddress);
     }
     // добавление box в container
     public void insertBox () {
@@ -371,8 +309,8 @@ public class ContainerView extends VerticalLayout {
             ContainerBox contBox = contBoxRepo.findByNumberBox(box.getNumberBox()).orElse(new ContainerBox());
             if (hierarchyOfBoxes.getDate() != 0 || !contBox.getNumberBox().isEmpty()) {
                 messageToPeople("Ошибка! Данный короб находится в другой упаковке!");
-                saveLog(bufferCode, "Сборка упаковки " + historyBox.get(0) + ". Короб находится в другой упаковке" + hierarchyOfBoxes.getNumberContainer() + "/" + contBox.getNumberContainer(), LvlEvent.WARNING, macAddress);
-                playSound("Эта_марка_уже_отгружена.wav");
+                LogService.saveLog(bufferCode, "Сборка упаковки " + historyBox.get(0) + ". Короб находится в другой упаковке" + hierarchyOfBoxes.getNumberContainer() + "/" + contBox.getNumberContainer(), LvlEvent.WARNING, macAddress);
+                Player.playSound("Эта_марка_уже_отгружена.wav");
             }
             else {
                 ContainerContent contContent = contContentRepo.findByNumberVariantBox(box.getVariantBox().getNumberVariant()).orElse(new ContainerContent());
@@ -389,8 +327,8 @@ public class ContainerView extends VerticalLayout {
                             }
                             if (needCount == nowCount) {
                                 messageToPeople("Ошибка! Отложите " + box.getVariantBox().getNumberVariant() + "! Сборка этих коробов закончена!");
-                                saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Сборка данного вида коробов закончена!", LvlEvent.WARNING, macAddress);
-                                playSound("Сборка_этого_товара_уже_закончена.wav");
+                                LogService.saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Сборка данного вида коробов закончена!", LvlEvent.WARNING, macAddress);
+                                Player.playSound("Сборка_этого_товара_уже_закончена.wav");
                             }
                         }
                     }
@@ -401,15 +339,15 @@ public class ContainerView extends VerticalLayout {
                 else {
                     Container container = containerRepo.findByNumberContainer(historyBox.get(0)).get();
                     messageToPeople("Ошибка! Короб " + box.getNumberBox() + " не найден в сборочном листе!");
-                    saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Короб " + box.getNumberBox() + " не найдена в сборочном листе!" , LvlEvent.WARNING, macAddress);
-                    playSound("Этот_товар_не_найден_в_сборочном_листе.wav");
+                    LogService.saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Короб " + box.getNumberBox() + " не найдена в сборочном листе!" , LvlEvent.WARNING, macAddress);
+                    Player.playSound("Этот_товар_не_найден_в_сборочном_листе.wav");
                 }
             }
         }
         else {
             messageToPeople("Ошибка! Штрихкод не распознан! " + bufferCode);
-            saveLog(bufferCode, "Сборка короба " + cont.getNumberContainer() +". Считан неопознанный штрихкод", LvlEvent.WARNING, macAddress);
-            playSound("Штрихкод_не_опознан.wav");
+            LogService.saveLog(bufferCode, "Сборка короба " + cont.getNumberContainer() +". Считан неопознанный штрихкод", LvlEvent.WARNING, macAddress);
+            Player.playSound("Штрихкод_не_опознан.wav");
         }
     }
     // добавление новой марки в базу
@@ -439,47 +377,6 @@ public class ContainerView extends VerticalLayout {
             playSound("Ок.wav");
             messageToPeople("Короб добавлен в упаковку");
             updateGrid();
-        }
-    }
-    // обработка считывания пользователем штрихкода короба
-    public void processBarcodeContainer () {
-        transactionRepository.save(new Transaction(macAddress));
-        saveLog("", "Транзакция открыта", LvlEvent.CRITICAL, macAddress);
-        if (isStarted) {
-            switch (historyBox.size()) {
-                case 2: {
-                    saveLog("", "Инициализация отмены сборки короба", LvlEvent.SYSTEM_INFO, macAddress);
-                    startCancelBuildBox();
-                    break;
-                }
-                case 3: {
-                    saveLog("", "Отмена сборки короба", LvlEvent.SYSTEM_INFO, macAddress);
-                    cancelBuildBox();
-                }
-            }
-        }
-        else {
-            switch (historyBox.size()) {
-                case 0: {
-                    saveLog("", "Начало сборки короба", LvlEvent.SYSTEM_INFO, macAddress);
-                    initBuildContainer();
-                    break;
-                }
-                case 1: {
-                    saveLog("", "Загрузка коробов", LvlEvent.SYSTEM_INFO, macAddress);
-                    startBuildContainer();
-                }
-            }
-        }
-        try{
-            transactionRepository.delete(transactionRepository.findBySession(macAddress));
-            saveLog("", "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);
-        }
-        catch (IncorrectResultSizeDataAccessException e1) {
-            messageToPeople("Во время работы возникла ошибка! Обратитесь к системному администратору!");
-            playSound("Ошибка.wav");
-            saveLog(bufferCode, "Ошибка в транзакции", LvlEvent.WARNING, macAddress);
-            transactionRepository.deleteAll(transactionRepository.findBySessions(macAddress));
         }
     }
     // старт сборки короба, подгрузка всех штрихкодов
@@ -632,89 +529,15 @@ public class ContainerView extends VerticalLayout {
         isStarted = false;
         firtsCheck = false;
     }
-    // вывод сообщений пользователю о том, что он считал штрихкод не того короба
-    public void errorScanBox() {
-        if (isStarted) {
-            messageToPeople("Ошибка! Штрихкод не распознан! " + bufferCode);
-            saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Считан неопознанный штрихкод", LvlEvent.WARNING, macAddress);
-            playSound("Штрихкод_не_опознан.wav");
-        }
-        else {
-            messageToPeople("Ошибка! Штрихкод не распознан! " + bufferCode);
-            saveLog(bufferCode, "Сборка короба не запущена. Считан неопознанный штрихкод", LvlEvent.WARNING, macAddress);
-            playSound("Штрихкод_не_опознан.wav");
-        }
-
-    }
-    // проверка состояния базы
-    public boolean checkDBState() {
-        List<StateDB> state = stateDBRepository.findAllSortByIdDesc();
-        if (state.size() > 0) {
-            StateDB currentState = state.get(0);
-            if (!currentState.isLock()) {
-                return false;
-            }
-            else {
-                return true;
-            }
-        }
-        else {
-            return false;
-        }
-    }
     // сообщение о том, что база заблокирована
     public void okMsgDBIsLock() {
-        List<StateDB> state = stateDBRepository.findAllSortByIdDesc();
-        if (state.size() > 0) {
-            StateDB currentState = state.get(0);
-            if (currentState.getDescription().isEmpty()) {
-                messageToPeople("База заблокирована. " + currentState.getDescription());
-            }
-            else {
-                messageToPeople(currentState.getDescription());
-            }
-            saveLog(bufferCode, "Считан штрихкод. База заблокирована", LvlEvent.INFO, macAddress);
-        }
+        messageToPeople(Noticer.okMsgDBIsLock(bufferCode, macAddress));
     }
     // инициализация сборки короба
     public void initBuildContainer () {
-        historyBox.add(bufferCode);
-        List<ContainerContent> contContent = contContentRepo.findByMacAddress(macAddress);
-        if (contContent == null || contContent.size() == 0) {
-            Container cont = containerRepo.findByNumberContainer(bufferCode).orElse(new Container());
-            if (cont.getNumberContainer() != null && !cont.getNumberContainer().isEmpty()) {
-                if (cont.getStatus().equals("Собран")) {
-                    errorMsgContAssembled();
-                }
-                else {
-                    okMsgContStepOne();
-                }
-            }
-            else {
-                errorMsgContStepOne();
-            }
-        }
-        else {
-            if (bufferCode.equals(contContent.get(0).getNumberContainer())) {
-                okMsgContStepOne();
-            }
-            else {
-                messageToPeople("Вы уже собираете другой короб! Номер короба: " + contContent.get(0).getNumberContainer());
-                saveLog(bufferCode, "Попытка начать сборку другого короба. " +
-                                "Номер нового короба " + bufferCode + ". " +
-                                "Номер собираемого короба " + contContent.get(0).getNumberContainer(),
-                        LvlEvent.WARNING, macAddress);
-                playSound("Ошибка.wav");
-                historyBox = new LinkedList<>();
-                historyBox.add(contContent.get(0).getNumberContainer());
-            }
-        }
-    }
-    // Для начала сборки необходимо отсканировать штрихкод короба!
-    public void errorMsgBoxAttentionBuildDontStart () {
-        messageToPeople("Внимание!\r\nДля начала сборки необходимо отсканировать штрихкод короба!");
-        saveLog(bufferCode, "Считан штрихкод марки. Сборка короба ещё не начата.", LvlEvent.WARNING, macAddress);
-        playSound("Перед_сканированием_марки_начните_сборку_короба.wav");
+        //передать штрихкод на обработку
+        BuilderContainer.confimationBuildContainer();
+        messageToPeople();
     }
     // штрихкод упаковки не распознан
     public void errorMsgContQrDontFind() {

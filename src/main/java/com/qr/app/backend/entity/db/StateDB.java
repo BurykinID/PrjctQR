@@ -9,7 +9,6 @@ import javax.persistence.Entity;
 @Getter
 @Setter
 @Data
-@NoArgsConstructor
 public class StateDB extends AbstractEntity {
 
     private boolean lock;
@@ -20,6 +19,12 @@ public class StateDB extends AbstractEntity {
         this.lock = lock;
         this.description = description;
         this.timeStartBlock = timeStartBlock;
+    }
+
+    public StateDB() {
+        this.lock = false;
+        this.description = "";
+        this.timeStartBlock = 0;
     }
 
 }
