@@ -14,6 +14,8 @@ public class Player {
     @Autowired
     private static SoundService soundService;
 
+    public Player() {}
+
     public static void playSound (String nameSound) {
         com.qr.app.backend.entity.Sound forPlay = soundService.getSound(nameSound);
 
