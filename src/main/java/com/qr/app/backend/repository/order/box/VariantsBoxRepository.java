@@ -12,7 +12,8 @@ import java.util.Optional;
 
 public interface VariantsBoxRepository extends JpaRepository<VariantBox, Long> {
 
-    Optional<VariantBox> findByNumberVariant(String numberVariant);
+    @Query("select var from VariantBox var where var.numberVariant = :number_variant")
+    Optional<VariantBox> findByNumberVariant(@Param("number_variant") String numberVariant);
 
     @Query("select variantBox from VariantBox variantBox where variantBox.order.number = :order_number")
     List<VariantBox> findByOrderNumber(@Param("order_number") String orderNumber);

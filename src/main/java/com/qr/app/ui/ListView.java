@@ -132,52 +132,40 @@ public class ListView extends VerticalLayout {
             logSessionRepository.save(new LogSession(new Date().getTime(), "", "Настройки подготовлены для сканера", LvlEvent.SYSTEM_INFO, "-"));
 
             serialPort.addEventListener(click -> {
-                if (!lock) {
-                    logSessionRepository.save(new LogSession(new Date().getTime(), "", "На сканер пришла информация", LvlEvent.SYSTEM_INFO, "-"));
-                    StringBuilder sb = new StringBuilder();
-                    try {
-                        saveLog("", "Подготовка считывания значения", LvlEvent.SYSTEM_INFO, macAddress);
-                        sb.append(serialPort.readString(click.getEventValue()));
-                        saveLog("", "Считывание значения " + sb.toString(), LvlEvent.SYSTEM_INFO, macAddress);
-                        UI ui = getUI().get();
-                        ui.access(() -> {
-                            saveLog("", "Управление потоком передано " + sb.toString(), LvlEvent.SYSTEM_INFO, macAddress);
-                            String data = sb.toString();
-                            if (data.length() <= 255) {
-                                saveLog("", "Пришло " + data, LvlEvent.SYSTEM_INFO, macAddress);
-                                int symbol = sb.indexOf("\r\n");
-                                saveLog("", "Обработка " + symbol, LvlEvent.SYSTEM_INFO, macAddress);
-                                if (symbol != -1){
-                                    lock = true;
-                                    bufferCode = bufferCode.concat(data.substring(0, symbol));
-                                    saveLog(bufferCode, "На сканер пришла информация", LvlEvent.SYSTEM_INFO, macAddress);
-                                    analyseCode();
-                                }
-                                else {
-                                    saveLog(bufferCode, "Сборка bufferCode " + data, LvlEvent.SYSTEM_INFO, macAddress);
-                                    bufferCode += data;
-                                }
+                logSessionRepository.save(new LogSession(new Date().getTime(), "", "На сканер пришла информация", LvlEvent.SYSTEM_INFO, "-"));
+                StringBuilder sb = new StringBuilder();
+                try {
+                    saveLog("", "Подготовка считывания значения", LvlEvent.SYSTEM_INFO, macAddress);
+                    sb.append(serialPort.readString(click.getEventValue()));
+                    saveLog("", "Считывание значения " + sb.toString(), LvlEvent.SYSTEM_INFO, macAddress);
+                    UI ui = getUI().get();
+                    ui.access(() -> {
+                        saveLog("", "Управление потоком передано " + sb.toString(), LvlEvent.SYSTEM_INFO, macAddress);
+                        String data = sb.toString();
+                        if (data.length() <= 255) {
+                            saveLog("", "Пришло " + data, LvlEvent.SYSTEM_INFO, macAddress);
+                            int symbol = sb.indexOf("\r\n");
+                            saveLog("", "Обработка " + symbol, LvlEvent.SYSTEM_INFO, macAddress);
+                            if (symbol != -1){
+                                lock = true;
+                                bufferCode = bufferCode.concat(data.substring(0, symbol));
+                                saveLog(bufferCode, "На сканер пришла информация", LvlEvent.SYSTEM_INFO, macAddress);
+                                analyseCode();
                             }
                             else {
-                                bufferCode = "";
-                                messageToPeople("Произошла ошибка. Считайте штрихкод ещё раз, чуть медленнее.");
-                                playSound("Ошибка.wav");
+                                saveLog(bufferCode, "Сборка bufferCode " + data, LvlEvent.SYSTEM_INFO, macAddress);
+                                bufferCode += data;
                             }
-                        });
-                    } catch (SerialPortException e) {
-                        saveLog("", "Ошибка", LvlEvent.SYSTEM_INFO, macAddress);
-                        e.printStackTrace();
-                    }
-                }
-                else {
-                    saveLog("", "Ответ от сканера ещё не получен. Ждите.", LvlEvent.INFO, macAddress);
-                    try {
-                        saveLog("", "Считывание находится в блокировке. Но пришло значение" + serialPort.readString(click.getEventValue()), LvlEvent.SYSTEM_INFO, macAddress);
-                    } catch (SerialPortException e) {
-                        saveLog("", "Ошибка считывания значения со сканера", LvlEvent.SYSTEM_INFO, macAddress);
-                        e.printStackTrace();
-                    }
-                    messageToPeople("Вы ещё не получили ответа от программы. Дождитесь его, прежде чем продолжить сканирование.");
+                        }
+                        else {
+                            bufferCode = "";
+                            messageToPeople("Произошла ошибка. Считайте штрихкод ещё раз.");
+                            playSound("Ошибка.wav");
+                        }
+                    });
+                } catch (SerialPortException e) {
+                    saveLog("", "Ошибка", LvlEvent.SYSTEM_INFO, macAddress);
+                    e.printStackTrace();
                 }
             }, SerialPort.MASK_RXCHAR);
         }
@@ -306,13 +294,12 @@ public class ListView extends VerticalLayout {
             playSound("Штрихкод_не_опознан.wav");
         }
         bufferCode = "";
-        lock = false;
+        saveLog(bufferCode, "Отладочная информация. Проверка очистки значения buffercode " + bufferCode, LvlEvent.CRITICAL, macAddress);
     }
     // вывод сообщений на экран
     public void messageToPeople (String message){
 
         dialog.close();
-
 
         if (!message.isEmpty()) {
             dialog = new Dialog();
@@ -344,9 +331,7 @@ public class ListView extends VerticalLayout {
                     boxContent.setCountNow(0);
                     boxContent.setNumberBox(box.getNumberBox());
                     boxContents.add(boxContent);
-
                 }
-
                 inBoxNeed.setValue(String.valueOf(variantBox.getCountInBox()));
                 numberBox.setValue(bufferCode);
                 boxContentRepository.saveAll(boxContents);
@@ -357,16 +342,12 @@ public class ListView extends VerticalLayout {
                 saveLog(bufferCode, "Задание на сборку короба " + historyBox.get(0) + " не найдено в базе данных", LvlEvent.WARNING, macAddress);
                 playSound("Ошибка.wav");
             }
-
-
         }
         else {
             messageToPeople("Короб не найден!");
             saveLog(bufferCode, "Короб " + historyBox.get(0) + " не найден в базе данных", LvlEvent.WARNING, macAddress);
             playSound("Штрихкод_не_опознан.wav");
         }
-
-
     }
     // восстановление потеряной сессии
     public void backToSession(String numberBoxStr) {
@@ -456,7 +437,7 @@ public class ListView extends VerticalLayout {
     // добавление новой марки в базу
     public void newMark(Box box, String cis, BoxContent markInJson) {
         BoxMark control = boxMarkRepository.findByNumberBoxAndCis(box.getNumberBox(), cis).orElse(new BoxMark());
-        if (control.getCis() != null || !control.getCis().isEmpty()) {
+        if (control.getCis().length() != 0) {
             messageToPeople("Ошибка! Марка " + cis + " уже есть в коробе!");
             saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Марка уже есть в коробе.", LvlEvent.WARNING, macAddress);
             playSound("Эта_марка_уже_лежит_в_коробе.wav");
@@ -568,7 +549,6 @@ public class ListView extends VerticalLayout {
         catch (IOException e) {
             e.printStackTrace();
         }
-
         saveLog("", "Строка с mac адресом не найдена в файле. Убедитесь, что файл application.properties находится в каталоге с jar файлом", LvlEvent.SYSTEM_INFO, "");
         return "";
     }
@@ -641,7 +621,7 @@ public class ListView extends VerticalLayout {
         }
 
         try{
-            transactionRepository.delete(transactionRepository.findBySession(macAddress));
+            transactionRepository.deleteAll(transactionRepository.findBySessions(macAddress));
             saveLog("", "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);
         }
         catch (NonUniqueResultException e) {
@@ -669,6 +649,7 @@ public class ListView extends VerticalLayout {
                         backToSession(box.getNumberBox());
                         messageToPeople("Сборка короба будет продолжена");
                         saveLog(bufferCode, "Сборка короба " + box.getNumberBox() + " восстановлена", LvlEvent.INFO, macAddress);
+                        playSound("Сборка_короба_начата._Отсканируйте_товары_согласно_сборочного_листа.wav");
                         isStarted = true;
                         historyBox.add(bufferCode);
                     }
@@ -891,48 +872,50 @@ public class ListView extends VerticalLayout {
     }
     // воспроизведение звука
     public void playSound(String nameSound) {
-        com.qr.app.backend.entity.Sound forPlay = soundRepository.findByFilename(nameSound);
 
-        saveLog("", "Получение файла с музыкой", LvlEvent.SYSTEM_INFO, macAddress);
+            com.qr.app.backend.entity.Sound forPlay = soundRepository.findByFilename(nameSound);
 
-        File file = null;
+            saveLog("", "Получение файла с музыкой", LvlEvent.SYSTEM_INFO, macAddress);
 
-        try {
-            file = new File(new File(".").getAbsolutePath(), forPlay.getFilename());
-        }
-        catch (NullPointerException e) {
-            e.printStackTrace();
-        }
+            File file = null;
 
-        Sound sound = null;
-        if (!file.exists()) {
             try {
-                file.createNewFile();
-                OutputStream outStream = new FileOutputStream(file);
-                outStream.write(forPlay.getSound());
-                outStream.close();
-                sound = new Sound(file);
-            } catch (IOException e) {
+                file = new File(new File(".").getAbsolutePath(), forPlay.getFilename());
+            }
+            catch (NullPointerException e) {
                 e.printStackTrace();
             }
-        }
-        else {
-            try {
-                OutputStream outStream = new FileOutputStream(file);
-                outStream.write(forPlay.getSound());
-                outStream.close();
-                sound = new Sound(file);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
 
-        if (sound != null) {
-            sound.play();
-            sound.join();
-        }
-        sound.close();
-        file.delete();
+            Sound sound = null;
+            if (!file.exists()) {
+                try {
+                    file.createNewFile();
+                    OutputStream outStream = new FileOutputStream(file);
+                    outStream.write(forPlay.getSound());
+                    outStream.close();
+                    sound = new Sound(file);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            else {
+                try {
+                    OutputStream outStream = new FileOutputStream(file);
+                    outStream.write(forPlay.getSound());
+                    outStream.close();
+                    sound = new Sound(file);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            if (sound != null) {
+                sound.play();
+                sound.join();
+            }
+            sound.close();
+            file.delete();
+
 
     }
 

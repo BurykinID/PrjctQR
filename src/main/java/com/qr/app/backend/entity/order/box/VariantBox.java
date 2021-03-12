@@ -1,6 +1,5 @@
 package com.qr.app.backend.entity.order.box;
 
-import com.qr.app.backend.Json.box.OrderDao;
 import com.qr.app.backend.Json.box.dao.BoxDao;
 import com.qr.app.backend.Json.box.dao.DescriptionBoxDao;
 import com.qr.app.backend.Json.box.dao.VariantBoxDao;

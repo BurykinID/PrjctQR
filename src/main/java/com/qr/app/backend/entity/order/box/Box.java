@@ -13,15 +13,15 @@ import javax.persistence.*;
 @Entity
 @Getter
 @Setter
-@Data
 @NoArgsConstructor
 public class Box extends AbstractEntity {
 
     @Column(unique = true)
     private String numberBox;
     private String status;
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "number_variant")
+
+    @ManyToOne
+    @JoinColumn(name = "numberVariant")
     private VariantBox variantBox;
 
     public Box(String numberBox, String status, VariantBox variantBox) {

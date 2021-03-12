@@ -295,55 +295,57 @@ public class ContainerView extends VerticalLayout {
     }
     // воспроизведение звука
     public void playSound(String nameSound) {
-        com.qr.app.backend.entity.Sound forPlay = soundRepository.findByFilename(nameSound);
 
-        saveLog("", "Получение файла с музыкой", LvlEvent.SYSTEM_INFO, macAddress);
+            com.qr.app.backend.entity.Sound forPlay = soundRepository.findByFilename(nameSound);
 
-        File file = null;
+            saveLog("", "Получение файла с музыкой", LvlEvent.SYSTEM_INFO, macAddress);
 
-        try {
-            file = new File(new File(".").getAbsolutePath(), forPlay.getFilename());
-        }
-        catch (NullPointerException e) {
-            e.printStackTrace();
-        }
+            File file = null;
 
-        Sound sound = null;
-        if (!file.exists()) {
+
             try {
-                file.createNewFile();
-                OutputStream outStream = new FileOutputStream(file);
-                outStream.write(forPlay.getSound());
-                outStream.close();
-                sound = new Sound(file);
-            } catch (IOException e) {
+                file = new File(new File(".").getAbsolutePath(), forPlay.getFilename());
+            }
+            catch (NullPointerException e) {
                 e.printStackTrace();
             }
-        }
-        else {
-            try {
-                OutputStream outStream = new FileOutputStream(file);
-                outStream.write(forPlay.getSound());
-                outStream.close();
-                sound = new Sound(file);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
 
-        if (sound != null) {
-            sound.play();
-            sound.join();
-        }
-        sound.close();
-        file.delete();
+            Sound sound = null;
+            if (!file.exists()) {
+                try {
+                    file.createNewFile();
+                    OutputStream outStream = new FileOutputStream(file);
+                    outStream.write(forPlay.getSound());
+                    outStream.close();
+                    sound = new Sound(file);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            else {
+                try {
+                    OutputStream outStream = new FileOutputStream(file);
+                    outStream.write(forPlay.getSound());
+                    outStream.close();
+                    sound = new Sound(file);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            if (sound != null) {
+                sound.play();
+                sound.join();
+            }
+            sound.close();
+            file.delete();
+
 
     }
     // вывод сообщений на экран
     public void messageToPeople (String message){
 
         dialog.close();
-
 
         if (!message.isEmpty()) {
             dialog = new Dialog();
@@ -592,7 +594,7 @@ public class ContainerView extends VerticalLayout {
             }
         }
         try{
-            transactionRepository.delete(transactionRepository.findBySession(macAddress));
+            transactionRepository.deleteAll(transactionRepository.findBySessions(macAddress));
             saveLog("", "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);
         }
         catch (IncorrectResultSizeDataAccessException e1) {
@@ -614,6 +616,7 @@ public class ContainerView extends VerticalLayout {
                     if (macAddressAFewTimes.equals(macAddress)) {
                         backToSession();
                         messageToPeople("Сборка короба будет продолжена");
+                        playSound("Сборка_короба_начата._Отсканируйте_товары_согласно_сборочного_листа.wav");
                         saveLog(bufferCode, "Сборка короба " + container.getNumberContainer() + " восстановлена", LvlEvent.INFO, macAddress);
                         isStarted = true;
                         historyBox.add(bufferCode);
@@ -625,7 +628,6 @@ public class ContainerView extends VerticalLayout {
                 else {
                     errorMsgContExerciseDontFind();
                 }
-
             }
             else if (statusCont.equals("Собран")){
                 errorMsgContAssembled();

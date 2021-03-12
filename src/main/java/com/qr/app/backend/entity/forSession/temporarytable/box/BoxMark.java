@@ -9,11 +9,16 @@ import javax.persistence.Entity;
 @Getter
 @Setter
 @Data
-@NoArgsConstructor
 public class BoxMark extends AbstractEntity {
 
     private String cis;
     private String numberBox;
     private String macAddress;
+
+    public BoxMark() {
+        this.cis = "";
+        this.numberBox = "";
+        this.macAddress = "";
+    }
 
 }
