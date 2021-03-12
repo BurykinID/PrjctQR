@@ -14,7 +14,7 @@ public class LogService {
     @Autowired
     private static LogSessionRepository logSessionRepository;
 
-    public static void saveLog (String bufferCode, String descriptionEvent, LvlEvent lvlEvent, String macAddress) {
+    public void saveLog (String bufferCode, String descriptionEvent, LvlEvent lvlEvent, String macAddress) {
         LogSession event = new LogSession(new Date().getTime(), bufferCode, descriptionEvent, lvlEvent, macAddress);
         logSessionRepository.save(event);
     }

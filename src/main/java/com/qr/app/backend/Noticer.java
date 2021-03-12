@@ -2,7 +2,9 @@ package com.qr.app.backend;
 
 import com.qr.app.backend.entity.db.StateDB;
 import com.qr.app.backend.entity.forSession.LvlEvent;
+import com.qr.app.backend.service.LogService;
 import com.qr.app.backend.service.StateDBService;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import static com.qr.app.backend.Player.playSound;
 import static com.qr.app.backend.service.LogService.saveLog;
