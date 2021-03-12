@@ -11,9 +11,9 @@ import java.util.List;
 public class StateDBService {
 
     @Autowired
-    private static StateDBRepository stateDBRepository;
+    private StateDBRepository stateDBRepository;
 
-    public static StateDB getDbState() {
+    public StateDB getDbState() {
         List<StateDB> stateList = stateDBRepository.findAllSortByIdDesc();
         //String currentState = stateList.get(0).getDescription();
         StateDB currentState = stateList.get(0);

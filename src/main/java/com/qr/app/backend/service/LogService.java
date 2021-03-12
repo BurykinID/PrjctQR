@@ -12,7 +12,7 @@ import java.util.Date;
 public class LogService {
 
     @Autowired
-    private static LogSessionRepository logSessionRepository;
+    private LogSessionRepository logSessionRepository;
 
     public void saveLog (String bufferCode, String descriptionEvent, LvlEvent lvlEvent, String macAddress) {
         LogSession event = new LogSession(new Date().getTime(), bufferCode, descriptionEvent, lvlEvent, macAddress);

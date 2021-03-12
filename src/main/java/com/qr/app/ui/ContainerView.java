@@ -17,6 +17,7 @@ import com.qr.app.backend.repository.order.container.ContainerRepository;
 import com.qr.app.backend.repository.order.container.DescriptionContainerRepository;
 import com.qr.app.backend.repository.temporary.container.ContainerBoxRepository;
 import com.qr.app.backend.repository.temporary.container.ContainerContentRepository;
+import com.qr.app.backend.service.LogService;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
@@ -68,6 +69,7 @@ public class ContainerView extends VerticalLayout {
     private final ContainerBoxRepository contBoxRepo;
     private final TransactionRepository transactionRepository;
     private final HierarchyOfBoxesRepository hierarchyOfBoxesRepo;
+    private final LogService logService;
 
     public ContainerView (ContainerRepository containerRepo,
                           DescriptionContainerRepository descriptionContRepo,
@@ -75,7 +77,8 @@ public class ContainerView extends VerticalLayout {
                           ContainerContentRepository contContentRepo,
                           ContainerBoxRepository contBoxRepo,
                           TransactionRepository transactionRepository,
-                          HierarchyOfBoxesRepository hierarchyOfBoxesRepo) throws FileNotFoundException {
+                          HierarchyOfBoxesRepository hierarchyOfBoxesRepo,
+                          LogService logService) throws FileNotFoundException {
         this.containerRepo = containerRepo;
         this.descriptionContRepo = descriptionContRepo;
         this.boxRepo = boxRepo;
@@ -83,6 +86,7 @@ public class ContainerView extends VerticalLayout {
         this.contBoxRepo = contBoxRepo;
         this.transactionRepository = transactionRepository;
         this.hierarchyOfBoxesRepo = hierarchyOfBoxesRepo;
+        this.logService = logService;
 
         addClassName("mark-view");
         setSizeFull();
@@ -113,19 +117,19 @@ public class ContainerView extends VerticalLayout {
                         ui.access(() -> {
                             bufferCode = Scanner.buildQrCode(sb);
                             if (!bufferCode.isEmpty())
-                                analyseCode();
+                                builderContainer.analyseCode(builderContainer, bufferCode);
                             else {
                                 Noticer.readQrSomeSlowly();
                             }
                         });
                     } catch (SerialPortException e) {
-                        saveLog("", "Ошибка считывания значения со сканера", LvlEvent.SYSTEM_INFO, macAddress);
+                        logService.saveLog("", "Ошибка считывания значения со сканера", LvlEvent.SYSTEM_INFO, macAddress);
                         messageToPeople("Ошибка считывания значения со сканера. Повторите считывание");
                     }
             }, SerialPort.MASK_RXCHAR);
         }
         catch (SerialPortException ex) {
-            saveLog("", "Порт занят.", LvlEvent.CRITICAL, macAddress);
+            logService.saveLog("", "Порт занят.", LvlEvent.CRITICAL, macAddress);
             messageToPeople("Порт занят. Проверьте, что сканер использует COM порт указанный в настройках! Выключите приложения, которые используют сканер. Перезапустите приложение");
             break refresh;
         }
@@ -142,49 +146,41 @@ public class ContainerView extends VerticalLayout {
     }
     // конфигурация текстовых полей
     public HorizontalLayout getToolBar () {
-
         HorizontalLayout layout = new HorizontalLayout(numberBoxLabel, numberBox, inBoxNeedLabel, inBoxNeed, inBoxNowLabel, inBoxNow);
-
         numberBox.setReadOnly(true);
         inBoxNeed.setReadOnly(true);
         inBoxNow.setReadOnly(true);
-
         return layout;
-
     }
     // вывод сообщений на экран
     public void messageToPeople (String message){
-
         dialog.close();
-
         if (!message.isEmpty()) {
             dialog = new Dialog();
             dialog.add(new Label(message));
             dialog.open();
         }
-
     }
     // обработка считывания штрихкода содержимого
     public void processBarcodeBox () {
         transactionRepository.save(new Transaction(macAddress));
-        saveLog(bufferCode, "Транзакция открыта", LvlEvent.CRITICAL, macAddress);
+        logService.saveLog(bufferCode, "Транзакция открыта", LvlEvent.CRITICAL, macAddress);
         if (isStarted) {
             if (firtsCheck) {
-                saveLog(bufferCode, "Добавление короба в короб", LvlEvent.SYSTEM_INFO, macAddress);
+                logService.saveLog(bufferCode, "Добавление короба в короб", LvlEvent.SYSTEM_INFO, macAddress);
                 assemblyBox();
             }
             else {
-                saveLog(bufferCode, "Добавление короба в короб. Первое сканирование", LvlEvent.SYSTEM_INFO, macAddress);
+                logService.saveLog(bufferCode, "Добавление короба в короб. Первое сканирование", LvlEvent.SYSTEM_INFO, macAddress);
                 firstScanBox();
                 firtsCheck = true;
             }
         }
         else {
-            messageToPeople("Внимание!\r\nДля начала сборки необходимо отсканировать штрихкод короба!");
-            Noticer.errorMsgBoxAttentionBuildDontStart(bufferCode, macAddress);
+            messageToPeople(Noticer.errorMsgBoxAttentionBuildDontStart(bufferCode, macAddress));
         }
         transactionRepository.delete(transactionRepository.findBySession(macAddress));
-        saveLog(bufferCode, "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);
+        logService.saveLog(bufferCode, "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);
     }
     // обработка первого сканирования марки пользователем
     public void firstScanBox () {

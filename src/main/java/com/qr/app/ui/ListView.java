@@ -1,6 +1,7 @@
 package com.qr.app.ui;
 
 import com.qr.app.backend.Configurer;
+import com.qr.app.backend.Noticer;
 import com.qr.app.backend.entity.Good;
 import com.qr.app.backend.entity.Mark;
 import com.qr.app.backend.entity.db.StateDB;
@@ -22,7 +23,6 @@ import com.qr.app.backend.repository.order.box.DescriptionBoxRepository;
 import com.qr.app.backend.repository.sound.SoundRepository;
 import com.qr.app.backend.repository.temporary.box.BoxContentRepository;
 import com.qr.app.backend.repository.temporary.box.BoxMarkRepository;
-import com.qr.app.backend.sound.Sound;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
@@ -37,11 +37,13 @@ import jssc.SerialPortException;
 import jssc.SerialPortList;
 import org.hibernate.NonUniqueResultException;
 
-import java.io.*;
+import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+
+import static com.qr.app.backend.Player.playSound;
 
 @Route(value = "")
 @Push
@@ -76,9 +78,8 @@ public class ListView extends VerticalLayout {
     private final LogSessionRepository logSessionRepository;
     private final StateDBRepository stateDBRepository;
     private final TransactionRepository transactionRepository;
-    private final SoundRepository soundRepository;
 
-    public ListView (BoxRepository boxRepository, DescriptionBoxRepository descriptionBoxRepository, GoodRepository goodRepository, MarkRepository markRepository, BoxContentRepository boxContentRepository, BoxMarkRepository boxMarkRepository, LogSessionRepository logSessionRepository, StateDBRepository stateDBRepository, TransactionRepository transactionRepository, SoundRepository soundRepository) throws FileNotFoundException {
+    public ListView (BoxRepository boxRepository, DescriptionBoxRepository descriptionBoxRepository, GoodRepository goodRepository, MarkRepository markRepository, BoxContentRepository boxContentRepository, BoxMarkRepository boxMarkRepository, LogSessionRepository logSessionRepository, StateDBRepository stateDBRepository, TransactionRepository transactionRepository) throws FileNotFoundException {
         this.boxRepository = boxRepository;
         this.descriptionBoxRepository = descriptionBoxRepository;
         this.goodRepository = goodRepository;
@@ -88,7 +89,6 @@ public class ListView extends VerticalLayout {
         this.logSessionRepository = logSessionRepository;
         this.stateDBRepository = stateDBRepository;
         this.transactionRepository = transactionRepository;
-        this.soundRepository = soundRepository;
 
         addClassName("mark-view");
         setSizeFull();
@@ -153,8 +153,7 @@ public class ListView extends VerticalLayout {
                             }
                             else {
                                 bufferCode = "";
-                                messageToPeople("Произошла ошибка. Считайте штрихкод ещё раз, чуть медленнее.");
-                                playSound("Ошибка.wav");
+                                messageToPeople(Noticer.readQrSomeSlowly());
                             }
                         });
                     } catch (SerialPortException e) {
@@ -795,54 +794,6 @@ public class ListView extends VerticalLayout {
             messageToPeople("Сборка короба завершена!");
             playSound("Короб_собран.wav");
         }
-    }
-    // воспроизведение звука
-    public void playSound(String nameSound) {
-        com.qr.app.backend.entity.Sound forPlay = soundRepository.findByFilename(nameSound);
-
-        if (!forPlay.getFilename().equals("Ок.wav")) {
-            saveLog("", "Получение файла с музыкой", LvlEvent.SYSTEM_INFO, macAddress);
-
-            File file = null;
-
-            try {
-                file = new File(new File(".").getAbsolutePath(), forPlay.getFilename());
-            }
-            catch (NullPointerException e) {
-                e.printStackTrace();
-            }
-
-            Sound sound = null;
-            if (!file.exists()) {
-                try {
-                    file.createNewFile();
-                    OutputStream outStream = new FileOutputStream(file);
-                    outStream.write(forPlay.getSound());
-                    outStream.close();
-                    sound = new Sound(file);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-            else {
-                try {
-                    OutputStream outStream = new FileOutputStream(file);
-                    outStream.write(forPlay.getSound());
-                    outStream.close();
-                    sound = new Sound(file);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-
-            if (sound != null) {
-                sound.play();
-                //sound.join();
-            }
-            sound.close();
-            file.delete();
-        }
-
     }
 
 }
