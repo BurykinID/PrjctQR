@@ -5,31 +5,28 @@ import com.qr.app.backend.entity.forSession.temporarytable.container.ContainerCo
 import com.qr.app.backend.entity.order.container.Container;
 import com.qr.app.backend.service.LogService;
 import com.qr.app.backend.service.StateDBService;
-import com.qr.app.backend.service.TransactionService;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.LinkedList;
 import java.util.List;
-
-import static com.qr.app.backend.Player.playSound;
 
 @Getter
 @Setter
 public class BuilderContainer {
 
-    private int countRepeatedQr;
+    private int countOfContainersQrRepeated;
     private String qr;
     private String macAddress;
+    private TypeQR
 
     public BuilderContainer() {
-        this.countRepeatedQr = 0;
+        this.countOfContainersQrRepeated = 0;
         this.qr = "";
         this.macAddress = "";
     }
 
     public BuilderContainer (int countRepeatedQr, String qr, String macAddress) {
-        this.countRepeatedQr = countRepeatedQr;
+        this.countOfContainersQrRepeated = countRepeatedQr;
         this.qr = qr;
         this.macAddress = macAddress;
     }
@@ -39,21 +36,20 @@ public class BuilderContainer {
         return super.toString();
     }
     // анализ штрихкодов
-    public void analyseCode(BuilderContainer builderContainer, String bufferCode) {
+    public void analyseReadQrCode (String readCode) {
         boolean lockDB = new StateDBService().getDbState().isLock();
         if (!lockDB) {
-            new LogService().saveLog(bufferCode, "Обработка штрихкода", LvlEvent.SYSTEM_INFO, macAddress);
-            if ((bufferCode.length() == 18 && bufferCode.charAt(0) == '2') ||
-                (bufferCode.length() == 20 && bufferCode.charAt(0) == '0' && bufferCode.charAt(2) == '2')) {
-                processBarcodeContainer(builderContainer, bufferCode);
+            new LogService().saveLog(readCode, "Обработка штрихкода", LvlEvent.SYSTEM_INFO, macAddress);
+            if ((readCode.length() == 18 && readCode.charAt(0) == '2') ||
+                (readCode.length() == 20 && readCode.charAt(0) == '0' && readCode.charAt(2) == '2')) {
+                readQrIsContainerBuildIt(readCode);
             }
-            else if (bufferCode.length() == 18 || bufferCode.length() == 20) {
-                processBarcodeBox();
+            else if (readCode.length() == 18 || readCode.length() == 20) {
+                readQrIsBoxBuildIt();
             }
             else {
-                if (builderContainer.getCountRepeatedQr() == 3)
-                    builderContainer.setCountRepeatedQr(2);
-                errorMsgContQrDontFind();
+                countOfContainersQrRepeated = countOfContainersQrRepeated == 3 ? 2 : countOfContainersQrRepeated;
+                errorMsgContainerQrDontFind();
             }
         }
         else {
@@ -61,46 +57,33 @@ public class BuilderContainer {
         }
     }
     // обработка считывания пользователем штрихкода короба
-    public BuilderContainer processBarcodeContainer (BuilderContainer currentBuilder, String bufferCode) {
-        TransactionService transactionService = new TransactionService();
+    public BuilderContainer readQrIsContainerBuildIt (String readCode) {
+        /*TransactionService transactionService = new TransactionService();
         transactionService.openTransaction(currentBuilder);
-        new LogService().saveLog("", "Транзакция открыта", LvlEvent.CRITICAL, macAddress);
-
-        switch(currentBuilder.countRepeatedQr) {
+        new LogService().saveLog("", "Транзакция открыта", LvlEvent.CRITICAL, macAddress);*/
+        switch (countOfContainersQrRepeated) {
             case 0:
-                new LogService().saveLog("", "Начало сборки короба", LvlEvent.SYSTEM_INFO, macAddress);
-                startBuildContainer(currentBuilder, bufferCode);
+                startOfContainerAssembly(readCode);
                 break;
             case 1:
-                new LogService().saveLog("", "Загрузка коробов", LvlEvent.SYSTEM_INFO, macAddress);
-                confimationBuildContainer(currentBuilder, bufferCode);
+                confimationOfContainerAssembly(readCode);
                 break;
             case 2:
-                new LogService().saveLog("", "Инициализация отмены сборки короба", LvlEvent.SYSTEM_INFO, macAddress);
-                startCancelBuildBox();
+                startCancelOfContainerAssembly();
                 break;
             case 3:
-                new LogService().saveLog("", "Отмена сборки короба", LvlEvent.SYSTEM_INFO, macAddress);
-                cancelBuildBox();
+                cancelOfContainerAssembly();
                 break;
             default:
-
                 break;
         }
 
-        transactionService.closeTransaction(currentBuilder);
-        new LogService().saveLog("", "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);
-
+        /*transactionService.closeTransaction(currentBuilder);
+        new LogService().saveLog("", "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);*/
     }
     //
-    public String startBuildContainer(BuilderContainer buildContainer, String bufferCode) {
-        //Container container = ContainerService.getContainerByMac(macAddress);
-        if (buildContainer.getCountRepeatedQr() == 0) {
-            buildContainer.setCountRepeatedQr(1);
-        }
-        else if (buildContainer.getQr().equals(bufferCode)){
-            buildContainer.setCountRepeatedQr(buildContainer.getCountRepeatedQr()+1);
-        }
+    public String startOfContainerAssembly (String bufferCode) {
+        countOfContainersQrRepeated = countOfContainersQrRepeated == 0 ? 1 : countOfContainersQrRepeated++;
         List<ContainerContent> contContent = contContentRepo.findByMacAddress(macAddress);
         if (contContent == null || contContent.size() == 0) {
             Container cont = containerRepo.findByNumberContainer(bufferCode).orElse(new Container());
@@ -127,7 +110,7 @@ public class BuilderContainer {
             }
         }
     }
-    public String confimationBuildContainer(BuilderContainer builderContainer, String bufferCode) {
+    public String confimationOfContainerAssembly (String bufferCode) {
 
     }
 

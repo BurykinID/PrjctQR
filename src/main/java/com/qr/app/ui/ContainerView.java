@@ -10,14 +10,6 @@ import com.qr.app.backend.entity.order.box.Box;
 import com.qr.app.backend.entity.order.container.Container;
 import com.qr.app.backend.entity.order.container.DescriptionContainer;
 import com.qr.app.backend.entity.order.container.VariantContainer;
-import com.qr.app.backend.repository.HierarchyOfBoxesRepository;
-import com.qr.app.backend.repository.db.TransactionRepository;
-import com.qr.app.backend.repository.order.box.BoxRepository;
-import com.qr.app.backend.repository.order.container.ContainerRepository;
-import com.qr.app.backend.repository.order.container.DescriptionContainerRepository;
-import com.qr.app.backend.repository.temporary.container.ContainerBoxRepository;
-import com.qr.app.backend.repository.temporary.container.ContainerContentRepository;
-import com.qr.app.backend.service.LogService;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
@@ -51,55 +43,25 @@ public class ContainerView extends VerticalLayout {
     private Player player;
 
     private Dialog dialog = new Dialog();
-    private String bufferCode;
+    private String readCode;
 
     private SerialPort serialPort;
 
     private boolean isStarted = false;
     private List<String> historyBox;
     private String macAddress;
-    private boolean firtsCheck = false;
+    private boolean firstCheck = false;
 
     private BuilderContainer builderContainer;
 
-    private final ContainerRepository containerRepo;
-    private final DescriptionContainerRepository descriptionContRepo;
-    private final BoxRepository boxRepo;
-    private final ContainerContentRepository contContentRepo;
-    private final ContainerBoxRepository contBoxRepo;
-    private final TransactionRepository transactionRepository;
-    private final HierarchyOfBoxesRepository hierarchyOfBoxesRepo;
-    private final LogService logService;
-
-    public ContainerView (ContainerRepository containerRepo,
-                          DescriptionContainerRepository descriptionContRepo,
-                          BoxRepository boxRepo,
-                          ContainerContentRepository contContentRepo,
-                          ContainerBoxRepository contBoxRepo,
-                          TransactionRepository transactionRepository,
-                          HierarchyOfBoxesRepository hierarchyOfBoxesRepo,
-                          LogService logService) throws FileNotFoundException {
-        this.containerRepo = containerRepo;
-        this.descriptionContRepo = descriptionContRepo;
-        this.boxRepo = boxRepo;
-        this.contContentRepo = contContentRepo;
-        this.contBoxRepo = contBoxRepo;
-        this.transactionRepository = transactionRepository;
-        this.hierarchyOfBoxesRepo = hierarchyOfBoxesRepo;
-        this.logService = logService;
+    public ContainerView () throws FileNotFoundException {
 
         addClassName("mark-view");
         setSizeFull();
         configureGrid();
         add(getToolBar(), grid);
-        player = new Player();
-        builderContainer = new BuilderContainer();
-        macAddress = Configurer.getMacAddress();
-        bufferCode = "";
-        historyBox = new ArrayList<>();
-        serialPort = new SerialPort(Configurer.getDevPort());
+        initParameters();
 
-        refresh:
         try {
             serialPort.openPort();
             serialPort.setParams(SerialPort.BAUDRATE_9600,
@@ -115,9 +77,10 @@ public class ContainerView extends VerticalLayout {
                         sb.append(serialPort.readString(eventKey.getEventValue()));
                         UI ui = getUI().get();
                         ui.access(() -> {
-                            bufferCode = Scanner.buildQrCode(sb);
-                            if (!bufferCode.isEmpty())
-                                builderContainer.analyseCode(builderContainer, bufferCode);
+                            readCode = new Scanner().buildQrCode(sb);
+                            if (!readCode.isEmpty())
+                                builderContainer.analyseReadQrCode(readCode);
+                                builderContainer.;
                             else {
                                 Noticer.readQrSomeSlowly();
                             }
@@ -131,8 +94,16 @@ public class ContainerView extends VerticalLayout {
         catch (SerialPortException ex) {
             logService.saveLog("", "Порт занят.", LvlEvent.CRITICAL, macAddress);
             messageToPeople("Порт занят. Проверьте, что сканер использует COM порт указанный в настройках! Выключите приложения, которые используют сканер. Перезапустите приложение");
-            break refresh;
         }
+    }
+
+    private void initParameters () throws FileNotFoundException {
+        player = new Player();
+        builderContainer = new BuilderContainer();
+        macAddress = Configurer.getMacAddress();
+        readCode = "";
+        historyBox = new ArrayList<>();
+        serialPort = new SerialPort(Configurer.getDevPort());
     }
     // конфигурация таблицы
     public void configureGrid () {
@@ -164,23 +135,23 @@ public class ContainerView extends VerticalLayout {
     // обработка считывания штрихкода содержимого
     public void processBarcodeBox () {
         transactionRepository.save(new Transaction(macAddress));
-        logService.saveLog(bufferCode, "Транзакция открыта", LvlEvent.CRITICAL, macAddress);
+        logService.saveLog(readCode, "Транзакция открыта", LvlEvent.CRITICAL, macAddress);
         if (isStarted) {
-            if (firtsCheck) {
-                logService.saveLog(bufferCode, "Добавление короба в короб", LvlEvent.SYSTEM_INFO, macAddress);
+            if (firstCheck) {
+                logService.saveLog(readCode, "Добавление короба в короб", LvlEvent.SYSTEM_INFO, macAddress);
                 assemblyBox();
             }
             else {
-                logService.saveLog(bufferCode, "Добавление короба в короб. Первое сканирование", LvlEvent.SYSTEM_INFO, macAddress);
+                logService.saveLog(readCode, "Добавление короба в короб. Первое сканирование", LvlEvent.SYSTEM_INFO, macAddress);
                 firstScanBox();
-                firtsCheck = true;
+                firstCheck = true;
             }
         }
         else {
-            messageToPeople(Noticer.errorMsgBoxAttentionBuildDontStart(bufferCode, macAddress));
+            messageToPeople(Noticer.errorMsgBoxAttentionBuildDontStart(readCode, macAddress));
         }
         transactionRepository.delete(transactionRepository.findBySession(macAddress));
-        logService.saveLog(bufferCode, "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);
+        logService.saveLog(readCode, "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);
     }
     // обработка первого сканирования марки пользователем
     public void firstScanBox () {
@@ -237,21 +208,21 @@ public class ContainerView extends VerticalLayout {
         }
         containerRepo.save(container);
         hierarchyOfBoxesRepo.saveAll(modifiedBoxes);
-        saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + " завершена", LvlEvent.INFO, macAddress);
+        saveLog(readCode, "Сборка короба " + historyBox.get(0) + " завершена", LvlEvent.INFO, macAddress);
     }
     // добавление box в container
     public void insertBox () {
         // найти короб по numberbox
         // определить вариант короба
         // если в description container содержится вариант короба, то проверяю что короб не лежит в друго контейнере
-        Box box = boxRepo.findByNumberBox(bufferCode).orElse(new Box());
+        Box box = boxRepo.findByNumberBox(readCode).orElse(new Box());
         Container cont = containerRepo.findByNumberContainer(historyBox.get(0)).orElse(new Container());
         if (box.getStatus() != null && box.getNumberBox() != null && box.getStatus().equals("Собран") && ! box.getNumberBox().isEmpty()) {
             HierarchyOfBoxes hierarchyOfBoxes = hierarchyOfBoxesRepo.findByNumberBox(box.getNumberBox()).orElse(new HierarchyOfBoxes());
             ContainerBox contBox = contBoxRepo.findByNumberBox(box.getNumberBox()).orElse(new ContainerBox());
             if (hierarchyOfBoxes.getDate() != 0 || !contBox.getNumberBox().isEmpty()) {
                 messageToPeople("Ошибка! Данный короб находится в другой упаковке!");
-                saveLog(bufferCode, "Сборка упаковки " + historyBox.get(0) + ". Короб находится в другой упаковке" + hierarchyOfBoxes.getNumberContainer() + "/" + contBox.getNumberContainer(), LvlEvent.WARNING, macAddress);
+                saveLog(readCode, "Сборка упаковки " + historyBox.get(0) + ". Короб находится в другой упаковке" + hierarchyOfBoxes.getNumberContainer() + "/" + contBox.getNumberContainer(), LvlEvent.WARNING, macAddress);
                 Player.playSound("Эта_марка_уже_отгружена.wav");
             }
             else {
@@ -261,15 +232,15 @@ public class ContainerView extends VerticalLayout {
                     int needCount = contContent.getCountNeed();
                     if (!cont.getNumberContainer().isEmpty()) {
                         if (needCount == 0) {
-                            newMark(cont, bufferCode, contContent);
+                            newMark(cont, readCode, contContent);
                         }
                         else {
                             if (needCount > nowCount) {
-                                newMark(cont, bufferCode, contContent);
+                                newMark(cont, readCode, contContent);
                             }
                             if (needCount == nowCount) {
                                 messageToPeople("Ошибка! Отложите " + box.getVariantBox().getNumberVariant() + "! Сборка этих коробов закончена!");
-                                saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Сборка данного вида коробов закончена!", LvlEvent.WARNING, macAddress);
+                                saveLog(readCode, "Сборка короба " + historyBox.get(0) + ". Сборка данного вида коробов закончена!", LvlEvent.WARNING, macAddress);
                                 Player.playSound("Сборка_этого_товара_уже_закончена.wav");
                             }
                         }
@@ -281,14 +252,14 @@ public class ContainerView extends VerticalLayout {
                 else {
                     Container container = containerRepo.findByNumberContainer(historyBox.get(0)).get();
                     messageToPeople("Ошибка! Короб " + box.getNumberBox() + " не найден в сборочном листе!");
-                    saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Короб " + box.getNumberBox() + " не найдена в сборочном листе!" , LvlEvent.WARNING, macAddress);
+                    saveLog(readCode, "Сборка короба " + historyBox.get(0) + ". Короб " + box.getNumberBox() + " не найдена в сборочном листе!" , LvlEvent.WARNING, macAddress);
                     Player.playSound("Этот_товар_не_найден_в_сборочном_листе.wav");
                 }
             }
         }
         else {
-            messageToPeople("Ошибка! Штрихкод не распознан! " + bufferCode);
-            saveLog(bufferCode, "Сборка короба " + cont.getNumberContainer() +". Считан неопознанный штрихкод", LvlEvent.WARNING, macAddress);
+            messageToPeople("Ошибка! Штрихкод не распознан! " + readCode);
+            saveLog(readCode, "Сборка короба " + cont.getNumberContainer() +". Считан неопознанный штрихкод", LvlEvent.WARNING, macAddress);
             Player.playSound("Штрихкод_не_опознан.wav");
         }
     }
@@ -297,7 +268,7 @@ public class ContainerView extends VerticalLayout {
         ContainerBox contBox = contBoxRepo.findByNumberContainerAndNumberBox(container.getNumberContainer(), numberBox).orElse(new ContainerBox());
         if (contBox.getNumberBox() != null && !contBox.getNumberBox().isEmpty()) {
             messageToPeople("Ошибка! Короб " + numberBox + " уже есть в упаковке!");
-            saveLog(bufferCode, "Сборка короба " + historyBox.get(0) + ". Короб уже есть в упаковке.", LvlEvent.WARNING, macAddress);
+            saveLog(readCode, "Сборка короба " + historyBox.get(0) + ". Короб уже есть в упаковке.", LvlEvent.WARNING, macAddress);
             playSound("Эта_марка_уже_лежит_в_коробе.wav");
         }
         else {
@@ -315,7 +286,7 @@ public class ContainerView extends VerticalLayout {
             contBox.setNumberContainer(container.getNumberContainer());
             contBoxRepo.save(contBox);
             contContentRepo.save(containerContent);
-            saveLog(bufferCode, "Сборка упаковки " + historyBox.get(0) + ". Короб добавлен в упаковку.", LvlEvent.INFO, macAddress);
+            saveLog(readCode, "Сборка упаковки " + historyBox.get(0) + ". Короб добавлен в упаковку.", LvlEvent.INFO, macAddress);
             playSound("Ок.wav");
             messageToPeople("Короб добавлен в упаковку");
             updateGrid();
@@ -323,19 +294,19 @@ public class ContainerView extends VerticalLayout {
     }
     // старт сборки короба, подгрузка всех штрихкодов
     public void startBuildContainer () {
-        if (bufferCode.equals(historyBox.get(0))) {
-            Container container = containerRepo.findByNumberContainer(bufferCode).get();
+        if (readCode.equals(historyBox.get(0))) {
+            Container container = containerRepo.findByNumberContainer(readCode).get();
             String statusCont = container.getStatus();
             if (statusCont.equals("В сборке")) {
-                List<ContainerContent> cont = contContentRepo.findByNumberContainer(bufferCode);
+                List<ContainerContent> cont = contContentRepo.findByNumberContainer(readCode);
                 if (cont.size() > 0) {
                     String macAddressAFewTimes = cont.get(0).getMacAddress();
                     if (macAddressAFewTimes.equals(macAddress)) {
                         backToSession();
                         messageToPeople("Сборка короба будет продолжена");
-                        saveLog(bufferCode, "Сборка короба " + container.getNumberContainer() + " восстановлена", LvlEvent.INFO, macAddress);
+                        saveLog(readCode, "Сборка короба " + container.getNumberContainer() + " восстановлена", LvlEvent.INFO, macAddress);
                         isStarted = true;
-                        historyBox.add(bufferCode);
+                        historyBox.add(readCode);
                     }
                     else {
                         errorMsgContAssembledInAnotherPC(container);
@@ -360,10 +331,10 @@ public class ContainerView extends VerticalLayout {
     // начало сборки короба
     public void initialAssemblyContainer (Container cont) {
         setupGrid();
-        historyBox.add(bufferCode);
+        historyBox.add(readCode);
         inBoxNow.setValue("0");
         okMsgContBuildWasStarted();
-        cont = containerRepo.findByNumberContainer(bufferCode).get();
+        cont = containerRepo.findByNumberContainer(readCode).get();
         cont.setStatus("В сборке");
         containerRepo.save(cont);
         isStarted = true;
@@ -373,7 +344,7 @@ public class ContainerView extends VerticalLayout {
         List<ContainerContent> contContentList = contContentRepo.findByMacAddress(macAddress);
         List<ContainerBox> contBoxList = contBoxRepo.findByMacAddress(macAddress);
         if (contContentList.size() != 0) {
-            Container cont = containerRepo.findByNumberContainer(bufferCode).orElse(new Container());
+            Container cont = containerRepo.findByNumberContainer(readCode).orElse(new Container());
             if (!cont.getNumberContainer().isEmpty()) {
                 inBoxNeed.setValue(String.valueOf(cont.getVariantContainer().getCountInBox()));
                 grid.setItems(contContentList);
@@ -387,7 +358,7 @@ public class ContainerView extends VerticalLayout {
             else {
                 errorMsgContDontFind();
             }
-            numberBox.setValue(bufferCode);
+            numberBox.setValue(readCode);
         }
         else {
             setupGrid();
@@ -395,11 +366,11 @@ public class ContainerView extends VerticalLayout {
     }
     // инициализация отмены сборки короба
     public void startCancelBuildBox() {
-        if (historyBox.get(0).equals(bufferCode)) {
+        if (historyBox.get(0).equals(readCode)) {
             messageToPeople("Вы хотите прервать сборку короба?\r\nСчитайте штрихкод ещё раз");
-            saveLog(bufferCode,"Сборка короба " + historyBox.get(0) +  ". Считан штрихкод короба. Инициация прерывания сборки короба", LvlEvent.INFO, macAddress);
+            saveLog(readCode,"Сборка короба " + historyBox.get(0) +  ". Считан штрихкод короба. Инициация прерывания сборки короба", LvlEvent.INFO, macAddress);
             playSound("Если_хотите_отменить_сборку_короба_отсканируйте_штрихкод_короба_еще_раз.wav");
-            historyBox.add(bufferCode);
+            historyBox.add(readCode);
         }
         else {
             errorMsgContScanQRAnotherCont();
@@ -407,14 +378,14 @@ public class ContainerView extends VerticalLayout {
     }
     // отмена сборки корода
     public void cancelBuildBox() {
-        if (historyBox.get(historyBox.size()-1).equals(bufferCode)) {
+        if (historyBox.get(historyBox.size()-1).equals(readCode)) {
             Container cont = containerRepo.findByNumberContainer(numberBox.getValue()).orElse(new Container());
             if (!cont.getNumberContainer().isEmpty()) {
                 cont.setStatus("");
                 containerRepo.save(cont);
             }
             messageToPeople("Сборка короба отменена");
-            saveLog(bufferCode, "Сборка короба " + historyBox.get(0) +" отменена", LvlEvent.INFO, macAddress);
+            saveLog(readCode, "Сборка короба " + historyBox.get(0) +" отменена", LvlEvent.INFO, macAddress);
             playSound("Сборка_короба_отменена._Уберите_товары_из_короба.wav");
             clearHistory();
         }
@@ -435,12 +406,12 @@ public class ContainerView extends VerticalLayout {
         updateGrid();
         historyBox = new ArrayList<>();
         isStarted = false;
-        firtsCheck = false;
+        firstCheck = false;
         builderContainer = new BuilderContainer();
     }
     // первоначальная загрузка списка товаров для сборки короба
     public void setupGrid () {
-        Container cont = containerRepo.findByNumberContainer(bufferCode).orElse(new Container());
+        Container cont = containerRepo.findByNumberContainer(readCode).orElse(new Container());
         if (!cont.getNumberContainer().isEmpty()) {
             VariantContainer variantCont = cont.getVariantContainer();
             List<DescriptionContainer> descriptionCont = descriptionContRepo.findByVariantContainer(variantCont);
@@ -456,7 +427,7 @@ public class ContainerView extends VerticalLayout {
                     contContents.add(contContent);
                 }
                 inBoxNeed.setValue(String.valueOf(variantCont.getCountInBox()));
-                numberBox.setValue(bufferCode);
+                numberBox.setValue(readCode);
                 contContentRepo.saveAll(contContents);
                 updateGrid();
             }
@@ -475,12 +446,12 @@ public class ContainerView extends VerticalLayout {
     // инициализация сборки короба
     public void initBuildContainer () {
         //передать штрихкод на обработку
-        BuilderContainer.confimationBuildContainer();
+        BuilderContainer.confimationOfContainerAssembly();
         messageToPeople();
     }
     // сообщение о том, что база заблокирована
     public void okMsgDBIsLock() {
-        messageToPeople(Noticer.okMsgDBIsLock(bufferCode, macAddress));
+        messageToPeople(Noticer.okMsgDBIsLock(readCode, macAddress));
     }
     // первый шаг прошел успешно. короб ещё не собран.
     public void okMsgContStepOne() {
@@ -493,12 +464,12 @@ public class ContainerView extends VerticalLayout {
     // штрихкод упаковки не распознан
     public void errorMsgContQrDontFind() {
         messageToPeople(Noticer.errorMsgContQrDontFind(builderContainer));
-        bufferCode = "";
+        readCode = "";
     }
     // Считан неопознанный штрихкод. контейнер
     public void errorMsgContStepOne() {
         messageToPeople(Noticer.errorMsgContStepOne(builderContainer));
-        bufferCode = "";
+        readCode = "";
     }
     // Сборка короба запущена на другом компьютере
     public void errorMsgContAssembledInAnotherPC(Container container) {

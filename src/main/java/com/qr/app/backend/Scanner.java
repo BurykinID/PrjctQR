@@ -5,7 +5,7 @@ import org.atmosphere.interceptor.AtmosphereResourceStateRecovery;
 
 public class Scanner {
 
-    public static String buildQrCode (StringBuilder sb) {
+    public String buildQrCode (StringBuilder sb) {
         String data = sb.toString();
         StringBuilder bufferCode = new StringBuilder();
         if (data.length() <= 255) {
