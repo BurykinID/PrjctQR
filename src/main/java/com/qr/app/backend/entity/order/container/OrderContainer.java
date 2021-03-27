@@ -30,7 +30,7 @@ public class OrderContainer {
     private List<VariantContainer> variantContainers;
 
     public OrderContainer() {
-        this.number = null;
+        this.number = "";
         this.date = 0;
         this.status = "";
         this.variantContainers = new LinkedList<>();

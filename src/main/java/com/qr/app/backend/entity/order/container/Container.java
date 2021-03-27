@@ -13,8 +13,6 @@ import javax.persistence.*;
 @Entity
 @Getter
 @Setter
-@Data
-@NoArgsConstructor
 public class Container extends AbstractEntity{
 
     @Column(unique = true)
@@ -28,6 +26,12 @@ public class Container extends AbstractEntity{
         this.numberContainer = numberContainer;
         this.status = status;
         this.variantContainer = variantContainer;
+    }
+
+    public Container() {
+        this.numberContainer = "";
+        this.status = "";
+        this.variantContainer = new VariantContainer();
     }
 
 }

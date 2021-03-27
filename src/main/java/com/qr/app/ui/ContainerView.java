@@ -2,7 +2,6 @@ package com.qr.app.ui;
 
 import com.qr.app.backend.*;
 import com.qr.app.backend.entity.HierarchyOfBoxes;
-import com.qr.app.backend.entity.db.Transaction;
 import com.qr.app.backend.entity.forSession.LvlEvent;
 import com.qr.app.backend.entity.forSession.temporarytable.container.ContainerBox;
 import com.qr.app.backend.entity.forSession.temporarytable.container.ContainerContent;
@@ -10,6 +9,7 @@ import com.qr.app.backend.entity.order.box.Box;
 import com.qr.app.backend.entity.order.container.Container;
 import com.qr.app.backend.entity.order.container.DescriptionContainer;
 import com.qr.app.backend.entity.order.container.VariantContainer;
+import com.qr.app.backend.status.ContainersState;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+
+import static com.qr.app.backend.newpack.ScanController.checkTypeReadQr;
 
 @Route (value = "container")
 @Push
@@ -78,9 +80,35 @@ public class ContainerView extends VerticalLayout {
                         UI ui = getUI().get();
                         ui.access(() -> {
                             readCode = new Scanner().buildQrCode(sb);
-                            if (!readCode.isEmpty())
-                                builderContainer.analyseReadQrCode(readCode);
-                                builderContainer.;
+                            if (!readCode.isEmpty()) {
+                                TypeQR s = checkTypeReadQr(readCode);
+                                if (s.equals(TypeQR.Container)) {
+                                    if (firstCheck && ) {
+                                        builderContainer.incrementCountOfContainersQrRepeated();
+                                        builderContainer.updateStateOfContainer();
+                                        // to do check state Container than msg to people about state.
+                                    }
+                                    else if (!firstCheck) {
+                                        // to do first check
+                                        builderContainer.checkStatusOfContainerInDb();
+                                    }
+                                    else {
+
+                                    }
+                                }
+                                else if (s.equals(TypeQR.Box)) {
+                                    if (builderContainer.getState().equals(ContainersState.InAssembly)) {
+                                        // проверить что не собран
+                                    }
+                                    else {
+                                        // сообщить, что сборка ещё не началась
+                                    }
+                                }
+                                else {
+                                    Noticer.errorMsgContStepOne(builderContainer);
+                                    // не валидный штрихкод
+                                }
+                            }
                             else {
                                 Noticer.readQrSomeSlowly();
                             }
@@ -134,8 +162,6 @@ public class ContainerView extends VerticalLayout {
     }
     // обработка считывания штрихкода содержимого
     public void processBarcodeBox () {
-        transactionRepository.save(new Transaction(macAddress));
-        logService.saveLog(readCode, "Транзакция открыта", LvlEvent.CRITICAL, macAddress);
         if (isStarted) {
             if (firstCheck) {
                 logService.saveLog(readCode, "Добавление короба в короб", LvlEvent.SYSTEM_INFO, macAddress);
@@ -150,8 +176,6 @@ public class ContainerView extends VerticalLayout {
         else {
             messageToPeople(Noticer.errorMsgBoxAttentionBuildDontStart(readCode, macAddress));
         }
-        transactionRepository.delete(transactionRepository.findBySession(macAddress));
-        logService.saveLog(readCode, "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);
     }
     // обработка первого сканирования марки пользователем
     public void firstScanBox () {

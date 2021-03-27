@@ -3,40 +3,66 @@ package com.qr.app.backend;
 import com.qr.app.backend.entity.forSession.LvlEvent;
 import com.qr.app.backend.entity.forSession.temporarytable.container.ContainerContent;
 import com.qr.app.backend.entity.order.container.Container;
+import com.qr.app.backend.service.ContainerService;
 import com.qr.app.backend.service.LogService;
 import com.qr.app.backend.service.StateDBService;
-import lombok.Getter;
-import lombok.Setter;
+import com.qr.app.backend.status.ContainersState;
+import com.qr.app.backend.status.ContainersStatusInDb;
 
 import java.util.List;
 
-@Getter
-@Setter
 public class BuilderContainer {
 
-    private int countOfContainersQrRepeated;
     private String qr;
+    private int countOfContainersQrRepeated;
     private String macAddress;
-    private TypeQR
+    private ContainersState state;
+    private ContainersStatusInDb statusInDb;
 
     public BuilderContainer() {
         this.countOfContainersQrRepeated = 0;
-        this.qr = "";
         this.macAddress = "";
+        this.state = ContainersState.Initial;
+        this.qr = "";
     }
 
-    public BuilderContainer (int countRepeatedQr, String qr, String macAddress) {
-        this.countOfContainersQrRepeated = countRepeatedQr;
+    public BuilderContainer (String qr, int countRepeatedQr, String macAddress, ContainersState state, ContainersStatusInDb statusInDb) {
         this.qr = qr;
+        this.countOfContainersQrRepeated = countRepeatedQr;
         this.macAddress = macAddress;
+        this.state = state;
+        this.statusInDb = statusInDb;
     }
 
     @Override
     public String toString () {
         return super.toString();
     }
+
+    public void incrementCountOfContainersQrRepeated() {
+        countOfContainersQrRepeated++;
+    }
+
+    public void updateStateOfContainer() {
+        switch (countOfContainersQrRepeated) {
+            case 0 : setState(ContainersState.Initial);
+                break;
+            case 1 : setState(ContainersState.StartOfAssembly);
+                break;
+            case 2 : setState(ContainersState.InAssembly);
+                break;
+            case 3 : setState(ContainersState.CancelAssembly);
+                break;
+        }
+    }
+
+    public void checkStatusOfContainerInDb() {
+        ContainerService containerService = new ContainerService();
+        statusInDb = containerService.getStatusContainer(qr);
+    }
+
     // анализ штрихкодов
-    public void analyseReadQrCode (String readCode) {
+    public void analyseTypeReadQrCode(String readCode) {
         boolean lockDB = new StateDBService().getDbState().isLock();
         if (!lockDB) {
             new LogService().saveLog(readCode, "Обработка штрихкода", LvlEvent.SYSTEM_INFO, macAddress);
@@ -77,7 +103,6 @@ public class BuilderContainer {
             default:
                 break;
         }
-
         /*transactionService.closeTransaction(currentBuilder);
         new LogService().saveLog("", "Транзакция закрыта", LvlEvent.CRITICAL, macAddress);*/
     }
@@ -114,6 +139,51 @@ public class BuilderContainer {
 
     }
 
+    public int getCountOfContainersQrRepeated() {
+        return countOfContainersQrRepeated;
+    }
 
+    public void setCountOfContainersQrRepeated(int countOfContainersQrRepeated) {
+        this.countOfContainersQrRepeated = countOfContainersQrRepeated;
+    }
 
+    public String getMacAddress() {
+        return macAddress;
+    }
+
+    public void setMacAddress(String macAddress) {
+        this.macAddress = macAddress;
+    }
+
+    public boolean getContainerAssembled() {
+        return containerAssembled;
+    }
+
+    public void setContainerAssembled(boolean containerAssembled) {
+        this.containerAssembled = containerAssembled;
+    }
+
+    public ContainersState getState() {
+        return state;
+    }
+
+    public void setState(ContainersState state) {
+        this.state = state;
+    }
+
+    public String getQr() {
+        return qr;
+    }
+
+    public void setQr(String qr) {
+        this.qr = qr;
+    }
+
+    public ContainersStatusInDb getStatusInDb() {
+        return statusInDb;
+    }
+
+    public void setStatusInDb(ContainersStatusInDb statusInDb) {
+        this.statusInDb = statusInDb;
+    }
 }
