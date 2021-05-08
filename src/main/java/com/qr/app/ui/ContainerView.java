@@ -10,6 +10,7 @@ import com.qr.app.backend.entity.order.box.Box;
 import com.qr.app.backend.entity.order.container.Container;
 import com.qr.app.backend.entity.order.container.DescriptionContainer;
 import com.qr.app.backend.entity.order.container.VariantContainer;
+import com.qr.app.backend.service.StateDBService;
 import com.vaadin.flow.component.UI;
 import com.vaadin.flow.component.dialog.Dialog;
 import com.vaadin.flow.component.grid.Grid;
@@ -55,13 +56,11 @@ public class ContainerView extends VerticalLayout {
     private BuilderContainer builderContainer;
 
     public ContainerView () throws FileNotFoundException {
-
         addClassName("mark-view");
         setSizeFull();
         configureGrid();
         add(getToolBar(), grid);
         initParameters();
-
         try {
             serialPort.openPort();
             serialPort.setParams(SerialPort.BAUDRATE_9600,
@@ -78,9 +77,20 @@ public class ContainerView extends VerticalLayout {
                         UI ui = getUI().get();
                         ui.access(() -> {
                             readCode = new Scanner().buildQrCode(sb);
-                            if (!readCode.isEmpty())
-                                builderContainer.analyseReadQrCode(readCode);
-                                builderContainer.;
+                            if (!readCode.isEmpty()) {
+                                builderContainer.defineTypeOfReadQRCode(readCode);
+                                if (!new StateDBService().getDbState().isLock()) {
+
+
+
+
+
+
+                                    builderContainer.analyseReadQrCode(readCode);
+                                }
+                                else
+                                    okMsgDBIsLock();
+                            }
                             else {
                                 Noticer.readQrSomeSlowly();
                             }
@@ -292,42 +302,6 @@ public class ContainerView extends VerticalLayout {
             updateGrid();
         }
     }
-    // старт сборки короба, подгрузка всех штрихкодов
-    public void startBuildContainer () {
-        if (readCode.equals(historyBox.get(0))) {
-            Container container = containerRepo.findByNumberContainer(readCode).get();
-            String statusCont = container.getStatus();
-            if (statusCont.equals("В сборке")) {
-                List<ContainerContent> cont = contContentRepo.findByNumberContainer(readCode);
-                if (cont.size() > 0) {
-                    String macAddressAFewTimes = cont.get(0).getMacAddress();
-                    if (macAddressAFewTimes.equals(macAddress)) {
-                        backToSession();
-                        messageToPeople("Сборка короба будет продолжена");
-                        saveLog(readCode, "Сборка короба " + container.getNumberContainer() + " восстановлена", LvlEvent.INFO, macAddress);
-                        isStarted = true;
-                        historyBox.add(readCode);
-                    }
-                    else {
-                        errorMsgContAssembledInAnotherPC(container);
-                    }
-                }
-                else {
-                    errorMsgContExerciseDontFind();
-                }
-
-            }
-            else if (statusCont.equals("Собран")){
-                errorMsgContAssembled();
-            }
-            else {
-                initialAssemblyContainer(container);
-            }
-        }
-        else {
-            errorMsgContScanQRAnotherCont();
-        }
-    }
     // начало сборки короба
     public void initialAssemblyContainer (Container cont) {
         setupGrid();
@@ -446,7 +420,7 @@ public class ContainerView extends VerticalLayout {
     // инициализация сборки короба
     public void initBuildContainer () {
         //передать штрихкод на обработку
-        BuilderContainer.confimationOfContainerAssembly();
+        BuilderContainer.confirmationOfContainerAssembly();
         messageToPeople();
     }
     // сообщение о том, что база заблокирована

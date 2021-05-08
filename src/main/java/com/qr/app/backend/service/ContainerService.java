@@ -8,13 +8,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class ContainerService {
 
-    @Autowired
     private static ContainerRepository containerRepository;
 
-    public static Container getContainerByMac(String macAddress) {
-
-        Container
-
-    }
+    
 
 }
