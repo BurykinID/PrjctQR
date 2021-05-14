@@ -93,7 +93,6 @@ public class ListView extends VerticalLayout {
         addClassName("mark-view");
         setSizeFull();
         configureGrid();
-
         add(getToolBar(), grid);
 
         macAddress = Configurer.getMacAddress();
