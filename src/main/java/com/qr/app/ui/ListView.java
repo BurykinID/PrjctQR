@@ -106,7 +106,7 @@ public class ListView extends VerticalLayout {
         bufferCode = "";
         historyBox = new ArrayList<>();
 
-        logSessionRepository.save(new LogSession(new Date().getTime(), "", "Начало создания конструктора", LvlEvent.SYSTEM_INFO, "-"));
+        logSessionRepository.save(new LogSession(new Date(), "", "Начало создания конструктора", LvlEvent.SYSTEM_INFO, "-"));
 
         String[] portNames = SerialPortList.getPortNames();
 
@@ -119,7 +119,7 @@ public class ListView extends VerticalLayout {
 
         try {
 
-            logSessionRepository.save(new LogSession(new Date().getTime(), "", "Попытка подключения к сканеру", LvlEvent.SYSTEM_INFO, "-"));
+            logSessionRepository.save(new LogSession(new Date(), "", "Попытка подключения к сканеру", LvlEvent.SYSTEM_INFO, "-"));
 
             serialPort.openPort();
             serialPort.setParams(SerialPort.BAUDRATE_9600,
@@ -129,10 +129,13 @@ public class ListView extends VerticalLayout {
             serialPort.setFlowControlMode(SerialPort.FLOWCONTROL_RTSCTS_IN |
                     SerialPort.FLOWCONTROL_RTSCTS_OUT);
 
-            logSessionRepository.save(new LogSession(new Date().getTime(), "", "Настройки подготовлены для сканера", LvlEvent.SYSTEM_INFO, "-"));
+
+
+
+            logSessionRepository.save(new LogSession(new Date(), "", "Настройки подготовлены для сканера", LvlEvent.SYSTEM_INFO, "-"));
 
             serialPort.addEventListener(click -> {
-                logSessionRepository.save(new LogSession(new Date().getTime(), "", "На сканер пришла информация", LvlEvent.SYSTEM_INFO, "-"));
+                logSessionRepository.save(new LogSession(new Date(), "", "На сканер пришла информация", LvlEvent.SYSTEM_INFO, "-"));
                 StringBuilder sb = new StringBuilder();
                 try {
                     saveLog("", "Подготовка считывания значения", LvlEvent.SYSTEM_INFO, macAddress);
@@ -146,11 +149,21 @@ public class ListView extends VerticalLayout {
                             saveLog("", "Пришло " + data, LvlEvent.SYSTEM_INFO, macAddress);
                             int symbol = sb.indexOf("\r\n");
                             saveLog("", "Обработка " + symbol, LvlEvent.SYSTEM_INFO, macAddress);
+                            try {
+                                serialPort.closePort();
+                            } catch (SerialPortException e) {
+                                e.printStackTrace();
+                            }
                             if (symbol != -1){
                                 lock = true;
                                 bufferCode = bufferCode.concat(data.substring(0, symbol));
                                 saveLog(bufferCode, "На сканер пришла информация", LvlEvent.SYSTEM_INFO, macAddress);
                                 analyseCode();
+                                try {
+                                    serialPort.openPort();
+                                } catch (SerialPortException e) {
+                                    e.printStackTrace();
+                                }
                             }
                             else {
                                 saveLog(bufferCode, "Сборка bufferCode " + data, LvlEvent.SYSTEM_INFO, macAddress);
@@ -219,7 +232,7 @@ public class ListView extends VerticalLayout {
     // анализ штрихкодов
     public void analyseCode() {
         if (bufferCode.length() == 18) {
-            logSessionRepository.save(new LogSession(new Date().getTime(), bufferCode, "Обработка штрихкода", LvlEvent.CRITICAL, macAddress));
+            logSessionRepository.save(new LogSession(new Date(), bufferCode, "Обработка штрихкода", LvlEvent.CRITICAL, macAddress));
             List<StateDB> state = stateDBRepository.findAllSortByIdDesc();
             String firstSymbol = bufferCode.substring(0, 1);
             String fourthSymbol = bufferCode.substring(3, 4);
@@ -554,7 +567,7 @@ public class ListView extends VerticalLayout {
     }
     // запись событий в базу данных
     public void saveLog (String bufferCode, String descriptionEvent, LvlEvent lvlEvent, String macAddress) {
-        LogSession event = new LogSession(new Date().getTime(), bufferCode, descriptionEvent, lvlEvent, macAddress);
+        LogSession event = new LogSession(new Date(), bufferCode, descriptionEvent, lvlEvent, macAddress);
         logSessionRepository.save(event);
     }
     // начало сборки короба

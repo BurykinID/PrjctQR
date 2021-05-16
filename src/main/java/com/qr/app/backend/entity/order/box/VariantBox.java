@@ -21,10 +21,10 @@ public class VariantBox extends AbstractEntity {
     private int countInBox;
     private int countBox;
 
-    @OneToMany(mappedBy = "variantBox")
+    @OneToMany(mappedBy = "variantBox", orphanRemoval = true)
     private List<DescriptionBox> descriptionBoxes;
 
-    @OneToMany(mappedBy = "variantBox")
+    @OneToMany(mappedBy = "variantBox", orphanRemoval = true)
     private List<Box> boxes;
 
     @ManyToOne

@@ -107,7 +107,7 @@ public class ContainerView extends VerticalLayout {
         bufferCode = "";
         historyBox = new ArrayList<>();
 
-        this.logSessionRepository.save(new LogSession(new Date().getTime(), "", "Начало создания конструктора", LvlEvent.SYSTEM_INFO, "-"));
+        this.logSessionRepository.save(new LogSession(new Date(), "", "Начало создания конструктора", LvlEvent.SYSTEM_INFO, "-"));
 
         String[] portNames = SerialPortList.getPortNames();
 
@@ -120,7 +120,7 @@ public class ContainerView extends VerticalLayout {
 
         try {
 
-            this.logSessionRepository.save(new LogSession(new Date().getTime(), "", "Попытка подключения к сканеру", LvlEvent.SYSTEM_INFO, "-"));
+            this.logSessionRepository.save(new LogSession(new Date(), "", "Попытка подключения к сканеру", LvlEvent.SYSTEM_INFO, "-"));
 
             serialPort.openPort();
             serialPort.setParams(SerialPort.BAUDRATE_9600,
@@ -130,11 +130,11 @@ public class ContainerView extends VerticalLayout {
             serialPort.setFlowControlMode(SerialPort.FLOWCONTROL_RTSCTS_IN |
                     SerialPort.FLOWCONTROL_RTSCTS_OUT);
 
-            this.logSessionRepository.save(new LogSession(new Date().getTime(), "", "Настройки подготовлены для сканера", LvlEvent.SYSTEM_INFO, "-"));
+            this.logSessionRepository.save(new LogSession(new Date(), "", "Настройки подготовлены для сканера", LvlEvent.SYSTEM_INFO, "-"));
 
             serialPort.addEventListener(click -> {
                 if (!lock) {
-                    this.logSessionRepository.save(new LogSession(new Date().getTime(), "", "На сканер пришла информация", LvlEvent.SYSTEM_INFO, "-"));
+                    this.logSessionRepository.save(new LogSession(new Date(), "", "На сканер пришла информация", LvlEvent.SYSTEM_INFO, "-"));
                     StringBuilder sb = new StringBuilder();
                     try {
                         saveLog("", "Подготовка считывания значения", LvlEvent.SYSTEM_INFO, macAddress);
@@ -233,7 +233,7 @@ public class ContainerView extends VerticalLayout {
     }
     // запись событий в базу данных
     public void saveLog (String bufferCode, String descriptionEvent, LvlEvent lvlEvent, String macAddress) {
-        LogSession event = new LogSession(new Date().getTime(), bufferCode, descriptionEvent, lvlEvent, macAddress);
+        LogSession event = new LogSession(new Date(), bufferCode, descriptionEvent, lvlEvent, macAddress);
         logSessionRepository.save(event);
     }
     // получение mac адреса компьютера

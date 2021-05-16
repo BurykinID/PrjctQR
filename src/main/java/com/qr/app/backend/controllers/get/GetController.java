@@ -28,7 +28,7 @@ public class GetController {
     private final StateDBRepository stateDBRepository;
     private final HierarchyOfBoxesRepository hierarchyOfBoxesRepository;
 
-    public GetController (MarkRepository markRepository, TransactionRepository transactionRepository, StateDBRepository stateDBRepository, HierarchyOfBoxesRepository hierarchyOfBoxesRepository) {
+    public GetController(MarkRepository markRepository, TransactionRepository transactionRepository, StateDBRepository stateDBRepository, HierarchyOfBoxesRepository hierarchyOfBoxesRepository) {
         this.markRepository = markRepository;
         this.transactionRepository = transactionRepository;
         this.stateDBRepository = stateDBRepository;
@@ -38,9 +38,7 @@ public class GetController {
     @GetMapping("/get")
     public JsonReturn checkMarkWithPartQueryInUrl (@RequestParam("cis") String cis,
                                                    @RequestParam("numberBox") String numberBox) {
-
         return checkMark(cis, numberBox);
-
     }
 
     @GetMapping("/get/ping")
@@ -48,8 +46,8 @@ public class GetController {
         return new ResponseEntity<>("OK", HttpStatus.OK);
     }
 
-    @GetMapping("/get/choise")
-    public MarkAndContainerJson getSample(@RequestParam("dateFrom") String dateFrom) {
+    @GetMapping("/get/choice")
+    public MarkAndContainerJson getAssembledBoxAndContainersFromDateToNow(@RequestParam("dateFrom") String dateFrom) {
 
         List<MarkJson> markJsons = new LinkedList<>();
         List<HierarchyOfBox> containerJson = new LinkedList<>();
@@ -105,6 +103,7 @@ public class GetController {
         }
         return new ResponseEntity<>("База разблокирована", HttpStatus.OK);
     }
+
 
     public JsonReturn checkMark (String cis, String numberBox) {
         Mark mark = markRepository.findByCis(cis).orElse(new Mark());
